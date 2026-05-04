@@ -96,7 +96,13 @@
 
   function resolveHex(val) {
     if (!val) return "#000000";
-    if (typeof val === "string") return val.startsWith("#") ? val : "#000000";
+    if (typeof val === "string") {
+      if (val.startsWith("#")) return val;
+      // Extract hex from rgba(...) / rgb(...)
+      const m = val.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+      if (m) return "#" + [m[1], m[2], m[3]].map(x => parseInt(x).toString(16).padStart(2, "0")).join("");
+      return "#000000";
+    }
     if (val && val.hex) return val.hex;
     return "#000000";
   }
@@ -137,6 +143,119 @@
     const bl = amount > 0 ? Math.min(255, b + amount) : Math.max(0, b + amount);
     const gr = amount > 0 ? Math.min(255, g + amount) : Math.max(0, g + amount);
     return `rgb(${a},${gr},${bl})`;
+  }
+
+  // ── Direct DOM theme application (mirrors context.tsx applyTheme) ─────────
+  // Called after save when the edited theme is already active, so the user
+  // sees changes immediately without a page reload.
+  function applyThemeToDom(data) {
+    const root = document.documentElement;
+    const DENSITY = { compact: "0.85", comfortable: "1", spacious: "1.2" };
+    const OVERRIDE_VARS = {
+      card: "--color-card", cardForeground: "--color-card-foreground",
+      popover: "--color-popover", popoverForeground: "--color-popover-foreground",
+      primary: "--color-primary", primaryForeground: "--color-primary-foreground",
+      secondary: "--color-secondary", secondaryForeground: "--color-secondary-foreground",
+      muted: "--color-muted", mutedForeground: "--color-muted-foreground",
+      accent: "--color-accent", accentForeground: "--color-accent-foreground",
+      destructive: "--color-destructive", destructiveForeground: "--color-destructive-foreground",
+      success: "--color-success", warning: "--color-warning",
+      border: "--color-border", input: "--color-input", ring: "--color-ring",
+    };
+
+    function parseLayer(val, dHex, dAlpha = 1) {
+      if (!val) return { hex: dHex, alpha: dAlpha };
+      if (typeof val === "string") return { hex: val, alpha: dAlpha };
+      return { hex: val.hex || dHex, alpha: val.alpha !== undefined ? val.alpha : dAlpha };
+    }
+    function setLayer(name, layer) {
+      const pct = Math.round(layer.alpha * 100);
+      root.style.setProperty(`--${name}`, `color-mix(in srgb, ${layer.hex} ${pct}%, transparent)`);
+      root.style.setProperty(`--${name}-base`, layer.hex);
+      root.style.setProperty(`--${name}-alpha`, String(layer.alpha));
+    }
+
+    const p = data.palette || {};
+    setLayer("background", parseLayer(p.background, "#041c1c"));
+    setLayer("midground",  parseLayer(p.midground,  "#ffe6cb"));
+    setLayer("foreground", parseLayer(p.foreground, "#ffffff", 0));
+    if (p.warmGlow) root.style.setProperty("--warm-glow", p.warmGlow);
+    root.style.setProperty("--noise-opacity-mul", String(p.noiseOpacity !== undefined ? p.noiseOpacity : 1));
+
+    const t = data.typography || {};
+    if (t.fontSans)       root.style.setProperty("--theme-font-sans", t.fontSans);
+    if (t.fontMono)       root.style.setProperty("--theme-font-mono", t.fontMono);
+    if (t.fontDisplay)    root.style.setProperty("--theme-font-display", t.fontDisplay);
+    if (t.baseSize)       root.style.setProperty("--theme-base-size", t.baseSize);
+    if (t.lineHeight)     root.style.setProperty("--theme-line-height", t.lineHeight);
+    if (t.letterSpacing)  root.style.setProperty("--theme-letter-spacing", t.letterSpacing);
+
+    const l = data.layout || {};
+    if (l.radius) {
+      root.style.setProperty("--radius", l.radius);
+      root.style.setProperty("--theme-radius", l.radius);
+    }
+    if (l.density) {
+      root.style.setProperty("--theme-spacing-mul", DENSITY[l.density] || "1");
+      root.style.setProperty("--theme-density", l.density);
+    }
+
+    const ov = data.colorOverrides || {};
+    for (const [key, varName] of Object.entries(OVERRIDE_VARS)) {
+      if (ov[key]) root.style.setProperty(varName, ov[key]);
+      else root.style.removeProperty(varName);
+    }
+
+    const toKebab = s => s.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
+    const BUCKETS = ["card","header","footer","sidebar","tab","progress","badge","backdrop","page"];
+    const cs = data.componentStyles || {};
+    for (const bucket of BUCKETS) {
+      const props = cs[bucket];
+      if (!props) continue;
+      for (const [prop, value] of Object.entries(props)) {
+        if (typeof value === "string" && value.trim())
+          root.style.setProperty(`--component-${bucket}-${toKebab(prop)}`, value);
+      }
+    }
+
+    const assets = data.assets || {};
+    if (assets.bg) {
+      const bg = assets.bg;
+      const wrapped = /^(url\(|linear-gradient|radial-gradient|conic-gradient|none$)/i.test(bg.trim()) ? bg : `url("${bg}")`;
+      root.style.setProperty("--theme-asset-bg", wrapped);
+      root.style.setProperty("--theme-asset-bg-raw", bg);
+    }
+
+    if (data.layoutVariant) {
+      root.dataset.layoutVariant = data.layoutVariant;
+      root.style.setProperty("--theme-layout-variant", data.layoutVariant);
+    }
+
+    if (t.fontUrl) {
+      const existing = document.querySelector(`link[href="${t.fontUrl}"]`);
+      if (!existing) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet"; link.href = t.fontUrl;
+        link.setAttribute("data-hermes-theme-font", "true");
+        document.head.appendChild(link);
+      }
+    }
+
+    const styleId = "hermes-theme-custom-css";
+    let styleEl = document.getElementById(styleId);
+    if (data.customCSS && data.customCSS.trim()) {
+      if (!styleEl) {
+        styleEl = document.createElement("style");
+        styleEl.id = styleId;
+        styleEl.setAttribute("data-hermes-theme-css", "true");
+        document.head.appendChild(styleEl);
+      }
+      styleEl.textContent = data.customCSS;
+    } else if (styleEl) {
+      styleEl.remove();
+    }
+
+    root.setAttribute("data-theme", data.name || "");
   }
 
   // ── Default empty theme ───────────────────────────────────────────────────
@@ -900,8 +1019,12 @@
         });
         showToast("✓ Theme saved");
         setDirty(false);
+        // If the saved theme is currently active, apply CSS vars immediately
+        // so changes are visible without a page reload.
+        if (themeData.name === activeTheme) {
+          applyThemeToDom(themeData);
+        }
         await load();
-        // Keep the editor open with the saved data
         if (isNew) {
           setEditing(prev => prev ? { ...prev, isNew: false } : prev);
         }
@@ -1119,37 +1242,60 @@
           }
         },
           // Save (only for user / new themes)
-          !BUILTIN_NAMES.has(editing.data.name) && h(Button, {
+          !BUILTIN_NAMES.has(editing.data.name) && h("button", {
             onClick: () => handleSave(editing.data),
             disabled: saving,
-            style: { width: "100%" },
+            style: {
+              width: "100%", padding: "7px 0", borderRadius: "6px",
+              background: saving ? "var(--color-muted, #334155)" : "var(--color-primary, #6366f1)",
+              color: "#fff", border: "none", fontSize: "13px", fontWeight: 500,
+              cursor: saving ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
+            },
           }, saving ? "Saving…" : "💾 Save theme"),
 
-          // Activate / Active badge
+          // Activate / Active indicator
           editing.data.name !== activeTheme
-            ? h(Button, {
-                variant: "outline",
+            ? h("button", {
                 onClick: () => handleActivate(editing.data.name),
-                style: { width: "100%" },
+                style: {
+                  width: "100%", padding: "6px 0", borderRadius: "6px",
+                  background: "transparent",
+                  border: "1px solid var(--color-border, rgba(255,255,255,0.12))",
+                  color: "var(--color-foreground, inherit)", fontSize: "12px",
+                  cursor: "pointer",
+                },
               }, "✓ Activate")
             : h("div", {
                 style: {
-                  textAlign: "center", fontSize: "11px", padding: "5px",
-                  color: "var(--color-primary)", fontWeight: 500,
+                  textAlign: "center", fontSize: "11px", padding: "6px",
+                  color: "var(--color-primary, #6366f1)", fontWeight: 600,
+                  border: "1px solid var(--color-primary, #6366f1)",
+                  borderRadius: "6px", opacity: 0.85,
                 }
               }, "✓ Active theme"),
 
           // Delete + Close row
           h("div", { style: { display: "flex", gap: "6px" } },
-            !BUILTIN_NAMES.has(editing.data.name) && !editing.isNew && h(Button, {
-              variant: "ghost",
+            !BUILTIN_NAMES.has(editing.data.name) && !editing.isNew && h("button", {
               onClick: () => handleDelete(editing.data.name),
-              style: { flex: 1, color: "var(--color-destructive, #ef4444)" },
+              style: {
+                flex: 1, padding: "5px 0", borderRadius: "6px",
+                background: "transparent",
+                border: "1px solid var(--color-destructive, #ef4444)",
+                color: "var(--color-destructive, #ef4444)",
+                fontSize: "12px", cursor: "pointer",
+              },
             }, "🗑 Delete"),
-            h(Button, {
-              variant: "ghost",
+            h("button", {
               onClick: () => { setEditing(null); setDirty(false); },
-              style: { flex: 1 },
+              style: {
+                flex: 1, padding: "5px 0", borderRadius: "6px",
+                background: "transparent",
+                border: "1px solid var(--color-border, rgba(255,255,255,0.12))",
+                color: "var(--color-foreground, inherit)",
+                fontSize: "12px", cursor: "pointer",
+              },
             }, "✕ Close"),
           ),
 
@@ -1157,10 +1303,9 @@
           isDirty && h("div", {
             style: {
               fontSize: "10px", textAlign: "center",
-              color: "var(--color-warning, #f59e0b)",
-              padding: "2px",
+              color: "var(--color-warning, #f59e0b)", padding: "2px",
             }
-          }, "Unsaved changes"),
+          }, "● Unsaved changes"),
         ),
       ),
     );

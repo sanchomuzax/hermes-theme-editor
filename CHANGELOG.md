@@ -9,6 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.3.0] — 2026-05-05
+
+### Fixed
+- **Instant theme apply on save**: after saving the currently-active theme the plugin now writes all CSS variables directly to `document.documentElement` (mirrors `applyTheme` in Hermes `context.tsx`) — no page reload needed
+- **Hex colour input for rgba values**: `resolveHex()` now parses `rgba(r,g,b,a)` and `rgb(r,g,b)` strings and converts them to hex, so colour override fields that store rgba values (e.g. `border`) display a correct hex colour instead of `#000000`
+- **Action button styling**: Save / Activate / Delete / Close buttons in the Live Preview column now use native `<button>` elements styled with theme CSS variables instead of the SDK `Button` component, so they match the rest of the editor UI
+- **`tools.py` → `plugin_tools.py`**: renamed to prevent `sys.path.insert` collision with Hermes Agent's own `tools/` package (was causing 500 errors in unrelated dashboard endpoints)
+- **`register_tool()` call signature**: fixed to pass `name, toolset, schema, handler` as required by `PluginContext`
+
+---
+
 ## [0.2.0] — 2026-05-04
 
 ### Changed
