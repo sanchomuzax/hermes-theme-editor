@@ -5,6 +5,8 @@
 Create, preview, and activate custom dashboard themes without editing YAML by hand.
 The editor appears as a native **Themes** tab inside the Hermes Agent web dashboard.
 
+![Theme Editor screenshot](docs/screenshot.png)
+
 ---
 
 ## Features

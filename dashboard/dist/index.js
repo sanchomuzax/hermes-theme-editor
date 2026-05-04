@@ -1,5 +1,5 @@
 /**
- * Hermes Theme Editor — Dashboard Plugin v0.4.0
+ * Hermes Theme Editor — Dashboard Plugin v0.4.1
  *
  * A visual editor for Hermes Agent dashboard themes.
  * Built-in themes can only be cloned. User themes (e.g. anthropic-claude)
@@ -219,11 +219,14 @@
     }
 
     const assets = data.assets || {};
-    if (assets.bg) {
-      const bg = assets.bg;
-      const wrapped = /^(url\(|linear-gradient|radial-gradient|conic-gradient|none$)/i.test(bg.trim()) ? bg : `url("${bg}")`;
+    if (assets.bg && assets.bg.trim()) {
+      const bg = assets.bg.trim();
+      const wrapped = /^(url\(|linear-gradient|radial-gradient|conic-gradient|none$)/i.test(bg) ? bg : `url("${bg}")`;
       root.style.setProperty("--theme-asset-bg", wrapped);
       root.style.setProperty("--theme-asset-bg-raw", bg);
+    } else {
+      root.style.removeProperty("--theme-asset-bg");
+      root.style.removeProperty("--theme-asset-bg-raw");
     }
 
     if (data.layoutVariant) {
@@ -1036,7 +1039,8 @@
       }
     }
 
-    async function handleActivate(name) {
+    async function handleActivate(themeData) {
+      const name = themeData.name;
       try {
         await fetchJSON("/api/dashboard/theme", {
           method: "PUT",
@@ -1044,7 +1048,8 @@
           body: JSON.stringify({ name }),
         });
         setActive(name);
-        showToast("✓ Theme activated — reload the page to apply");
+        applyThemeToDom(themeData);
+        showToast("✓ Theme activated");
       } catch (e) {
         showToast("Failed to activate: " + e.message, "error");
       }
@@ -1300,7 +1305,7 @@
           // Activate / Active indicator
           editing.data.name !== activeTheme
             ? h("button", {
-                onClick: () => handleActivate(editing.data.name),
+                onClick: () => handleActivate(editing.data),
                 style: {
                   width: "100%", padding: "6px 0", borderRadius: "6px",
                   background: "transparent",

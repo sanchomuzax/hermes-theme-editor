@@ -9,6 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.1] — 2026-05-05
+
+### Fixed
+- **Activate button now applies theme immediately**: `handleActivate` now passes the full theme object to `applyThemeToDom` after the API call, so all CSS variables (including the background asset) update at once — same result as the Hermes native theme switcher.
+- **Background asset cleared on theme switch**: `applyThemeToDom` now removes `--theme-asset-bg` / `--theme-asset-bg-raw` when the incoming theme has no background asset, preventing the previous theme's background from bleeding through.
+
+### Added
+- **Screenshot** in `docs/screenshot.png`, displayed at the top of README.
+
+---
+
 ## [0.4.0] — 2026-05-05
 
 ### Added
