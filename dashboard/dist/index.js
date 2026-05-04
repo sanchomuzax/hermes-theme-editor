@@ -217,15 +217,22 @@
       if (link.href !== fontUrl) link.href = fontUrl;
     }
 
-    const S = { // shared style fragments
-      text: { color: mid, fontFamily, fontSize, lineHeight },
-      muted: { color: muted, fontFamily, fontSize: "10px", lineHeight },
+    const S = { // shared style fragments — sizes scale with baseSize
+      text:  { color: mid,   fontFamily, fontSize: pxBase,  lineHeight },
+      muted: { color: muted, fontFamily, fontSize: pxSmall, lineHeight },
+      tiny:  { color: muted, fontFamily, fontSize: pxTiny,  lineHeight },
     };
+
+    // Scale text sizes proportionally so font-size changes are visible
+    const scale = Math.max(0.7, Math.min(1.3, basePx / 15));
+    const pxBase   = Math.round(10 * scale) + "px";
+    const pxSmall  = Math.round(8.5 * scale) + "px";
+    const pxTiny   = Math.round(7.5 * scale) + "px";
 
     return h("div", {
       style: {
         display: "flex", flexDirection: "column", borderRadius: radius,
-        overflow: "hidden", border: `1px solid ${border}`, height: "100%",
+        overflow: "hidden", border: `1px solid ${border}`,
         background: bg, fontFamily,
       }
     },
@@ -239,9 +246,9 @@
       },
         h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } },
           h("span", { style: { width: "8px", height: "8px", borderRadius: "50%", background: success } }),
-          h("span", { style: { ...S.text, fontSize: "11px", fontWeight: 600 } }, "Hermes Agent"),
+          h("span", { style: { ...S.muted, fontWeight: 600 } }, "Hermes Agent"),
         ),
-        h("span", { style: { ...S.muted } }, "◐ Theme Editor"),
+        h("span", { style: { ...S.tiny } }, "◐ Theme Editor"),
       ),
 
       // Body: sidebar + main
@@ -281,8 +288,8 @@
                 borderRadius: radius, padding: "7px 10px",
               }
             },
-              h("div", { style: { ...S.muted, marginBottom: "3px" } }, "✦ Assistant"),
-              h("div", { style: { ...S.text, fontSize: "10px" } }, "Hello! How can I help you today?"),
+              h("div", { style: { ...S.tiny, marginBottom: "3px" } }, "✦ Assistant"),
+              h("div", { style: { ...S.text } }, "Hello! How can I help you today?"),
             ),
 
             // User message
@@ -293,8 +300,8 @@
                 borderRadius: radius, padding: "7px 10px", marginLeft: "12px",
               }
             },
-              h("div", { style: { ...S.muted, marginBottom: "3px" } }, "You"),
-              h("div", { style: { ...S.text, fontSize: "10px" } }, "Tell me about this theme."),
+              h("div", { style: { ...S.tiny, marginBottom: "3px" } }, "You"),
+              h("div", { style: { ...S.text } }, "Tell me about this theme."),
             ),
 
             // Tool call
@@ -305,7 +312,7 @@
                 borderRadius: radius, padding: "5px 8px",
               }
             },
-              h("div", { style: { ...S.muted, fontSize: "9px" } }, "⚡ theme_editor_get_theme"),
+              h("div", { style: { ...S.tiny } }, "⚡ theme_editor_get_theme"),
             ),
 
             // Button row
@@ -313,34 +320,44 @@
               h("div", {
                 style: {
                   background: primary, color: "#fff",
-                  borderRadius: radius, padding: "4px 10px",
-                  fontSize: "9px", fontWeight: 600,
+                  borderRadius: radius, padding: "3px 8px",
+                  fontSize: pxTiny, fontWeight: 600,
                 }
               }, "Save"),
               h("div", {
                 style: {
                   background: "transparent",
                   border: `1px solid ${border}`, color: muted,
-                  borderRadius: radius, padding: "4px 10px", fontSize: "9px",
+                  borderRadius: radius, padding: "3px 8px", fontSize: pxTiny,
                 }
               }, "Cancel"),
             ),
           ),
 
-          // Input bar
+          // Input bar — compact, not distracting
           h("div", {
             style: {
-              padding: "7px 10px",
+              padding: "5px 8px",
               borderTop: `1px solid ${border}`,
+              display: "flex", alignItems: "center", gap: "6px",
             }
           },
             h("div", {
               style: {
+                flex: 1,
                 background: "rgba(255,255,255,0.04)",
                 border: `1px solid ${border}`, borderRadius: radius,
-                padding: "5px 10px", fontSize: "10px", color: "rgba(255,255,255,0.3)",
+                padding: "3px 8px", fontSize: pxTiny, color: "rgba(255,255,255,0.25)",
               }
-            }, "Type a message… "),
+            }, "Type a message…"),
+            h("div", {
+              style: {
+                width: "20px", height: "20px", borderRadius: radius,
+                background: primary, display: "flex", alignItems: "center",
+                justifyContent: "center", fontSize: pxTiny, color: "#fff",
+                flexShrink: 0,
+              }
+            }, "↑"),
           ),
         ),
       ),
@@ -544,7 +561,7 @@
   }
 
   // ── Theme editor form ─────────────────────────────────────────────────────
-  function ThemeForm({ theme, isNew, onUpdate, onSave, onCancel, onDelete, onActivate, isActive, saving }) {
+  function ThemeForm({ theme, isNew, onUpdate }) {
     const readOnly = !isNew && BUILTIN_NAMES.has(theme.name);
 
     function set(path, value) {
@@ -796,26 +813,6 @@
         }),
       ),
 
-      // Action buttons
-      h("div", { className: "flex items-center gap-2 p-3 border-t border-border mt-2 sticky bottom-0 bg-background/95 backdrop-blur" },
-        !readOnly && h(Button, {
-          onClick: () => onSave(theme),
-          disabled: saving,
-          className: "flex-1",
-        }, saving ? "Saving…" : "💾 Save theme"),
-        !isActive && h(Button, {
-          variant: "outline",
-          onClick: () => onActivate(theme.name),
-          className: "shrink-0",
-        }, "✓ Activate"),
-        isActive && h(Badge, { variant: "default", className: "shrink-0" }, "Active"),
-        !readOnly && !isNew && h(Button, {
-          variant: "ghost",
-          onClick: () => onDelete(theme.name),
-          className: "shrink-0 text-destructive hover:text-destructive",
-        }, "🗑 Delete"),
-        h(Button, { variant: "ghost", onClick: onCancel, className: "shrink-0" }, "✕"),
-      ),
     );
   }
 
@@ -949,7 +946,11 @@
     }
 
     return h("div", {
-      style: { display: "flex", height: "100%", overflow: "hidden", position: "relative" },
+      style: {
+        display: "flex",
+        position: "absolute", inset: 0,  // fill the Hermes tab pane exactly
+        overflow: "hidden",
+      },
     },
 
       // Toast
@@ -1074,24 +1075,17 @@
                 h("span", { style: { fontSize: "15px", fontWeight: 600 } },
                   editing.isNew ? "New theme" : ("Editing: " + (editing.data.label || editing.data.name))
                 ),
-                isDirty && h("span", { style: { fontSize: "10px", color: "var(--color-warning, #f59e0b)", padding: "2px 6px", borderRadius: "4px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" } }, "Unsaved changes"),
-                BUILTIN_NAMES.has(editing.data.name) && !editing.isNew && h("span", { style: { fontSize: "10px", color: "var(--color-text-muted)", padding: "2px 6px", borderRadius: "4px", border: "1px solid var(--color-border)" } }, "Read-only (clone to edit)"),
+                BUILTIN_NAMES.has(editing.data.name) && !editing.isNew && h("span", { style: { fontSize: "10px", color: "var(--color-text-muted)", padding: "2px 6px", borderRadius: "4px", border: "1px solid var(--color-border)" } }, "Read-only — clone to edit"),
               ),
               h(ThemeForm, {
                 theme: editing.data,
                 isNew: editing.isNew,
                 onUpdate: handleUpdate,
-                onSave: handleSave,
-                onCancel: () => { setEditing(null); setDirty(false); },
-                onDelete: handleDelete,
-                onActivate: handleActivate,
-                isActive: editing.data.name === activeTheme,
-                saving,
               }),
             ),
       ),
 
-      // ── Right: live preview ───────────────────────────────────────────────
+      // ── Right: live preview + action buttons ─────────────────────────────
       editing && h("div", {
         style: {
           width: "280px", minWidth: "280px",
@@ -1100,16 +1094,73 @@
           overflow: "hidden",
         }
       },
+        // Header
         h("div", {
           style: {
             padding: "10px 12px 8px",
             borderBottom: "1px solid var(--color-border)",
             fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em",
-            color: "var(--color-text-muted)",
+            color: "var(--color-text-muted)", flexShrink: 0,
           }
         }, "Live Preview"),
-        h("div", { style: { flex: 1, padding: "12px", overflow: "hidden" } },
+
+        // Preview panel — flex:1 but shrinks for buttons below
+        h("div", { style: { flex: 1, padding: "12px", overflow: "hidden", minHeight: 0 } },
           h(LivePreview, { theme: editing.data }),
+        ),
+
+        // ── Action buttons ───────────────────────────────────────────────
+        h("div", {
+          style: {
+            padding: "10px 12px",
+            borderTop: "1px solid var(--color-border)",
+            display: "flex", flexDirection: "column", gap: "6px",
+            flexShrink: 0,
+          }
+        },
+          // Save (only for user / new themes)
+          !BUILTIN_NAMES.has(editing.data.name) && h(Button, {
+            onClick: () => handleSave(editing.data),
+            disabled: saving,
+            style: { width: "100%" },
+          }, saving ? "Saving…" : "💾 Save theme"),
+
+          // Activate / Active badge
+          editing.data.name !== activeTheme
+            ? h(Button, {
+                variant: "outline",
+                onClick: () => handleActivate(editing.data.name),
+                style: { width: "100%" },
+              }, "✓ Activate")
+            : h("div", {
+                style: {
+                  textAlign: "center", fontSize: "11px", padding: "5px",
+                  color: "var(--color-primary)", fontWeight: 500,
+                }
+              }, "✓ Active theme"),
+
+          // Delete + Close row
+          h("div", { style: { display: "flex", gap: "6px" } },
+            !BUILTIN_NAMES.has(editing.data.name) && !editing.isNew && h(Button, {
+              variant: "ghost",
+              onClick: () => handleDelete(editing.data.name),
+              style: { flex: 1, color: "var(--color-destructive, #ef4444)" },
+            }, "🗑 Delete"),
+            h(Button, {
+              variant: "ghost",
+              onClick: () => { setEditing(null); setDirty(false); },
+              style: { flex: 1 },
+            }, "✕ Close"),
+          ),
+
+          // Dirty indicator
+          isDirty && h("div", {
+            style: {
+              fontSize: "10px", textAlign: "center",
+              color: "var(--color-warning, #f59e0b)",
+              padding: "2px",
+            }
+          }, "Unsaved changes"),
         ),
       ),
     );
