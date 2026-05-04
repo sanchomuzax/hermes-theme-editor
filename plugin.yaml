@@ -1,5 +1,5 @@
 name: hermes-theme-editor
-version: 0.1.0
+version: 0.2.0
 description: >
   Visual theme editor for the Hermes Agent dashboard.
   Create, edit, preview, and activate custom YAML themes from a native

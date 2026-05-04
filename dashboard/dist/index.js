@@ -1,577 +1,555 @@
 /**
- * Hermes Theme Editor — Dashboard Plugin v0.1.0
+ * Hermes Theme Editor — Dashboard Plugin v0.2.0
  *
- * Provides a visual editor for Hermes Agent dashboard themes stored in
- * ~/.hermes/dashboard-themes/*.yaml.
+ * A visual editor for Hermes Agent dashboard themes.
+ * Built-in themes can only be cloned. User themes (e.g. anthropic-claude)
+ * are fully editable — every property in the YAML, presented without CSS
+ * knowledge required, with a live mini-preview that updates as you type.
  *
- * Uses the Hermes Plugin SDK globals — no build step required:
- *   window.__HERMES_PLUGIN_SDK__  — React, hooks, components, fetchJSON, useI18n
- *   window.__HERMES_PLUGINS__     — register()
+ * Layout: [Theme List] | [Editor] | [Live Preview]
  *
- * API endpoints used:
- *   GET  /api/dashboard/themes               — list all themes + active
- *   PUT  /api/dashboard/theme                — set active theme { name }
- *   GET  /api/plugins/hermes-theme-editor/themes        — list user themes (full YAML)
- *   POST /api/plugins/hermes-theme-editor/themes        — create user theme
- *   PUT  /api/plugins/hermes-theme-editor/themes/:name  — update user theme
- *   DELETE /api/plugins/hermes-theme-editor/themes/:name — delete user theme
+ * API used:
+ *   GET  /api/dashboard/themes                             list all + active
+ *   PUT  /api/dashboard/theme                             set active { name }
+ *   GET  /api/plugins/hermes-theme-editor/themes          user themes (full YAML)
+ *   POST /api/plugins/hermes-theme-editor/themes          create
+ *   PUT  /api/plugins/hermes-theme-editor/themes/:name   update
+ *   DELETE /api/plugins/hermes-theme-editor/themes/:name delete
  */
 (function () {
   "use strict";
 
   const SDK = window.__HERMES_PLUGIN_SDK__;
-  if (!SDK) {
-    console.error("[hermes-theme-editor] Plugin SDK not available");
-    return;
-  }
+  if (!SDK) { console.error("[theme-editor] SDK not found"); return; }
 
-  const { React, hooks, fetchJSON, useI18n } = SDK;
-  const { useState, useEffect, useCallback, useRef } = hooks;
+  const { React, hooks, fetchJSON } = SDK;
+  const { useState, useEffect, useCallback, useRef, useMemo } = hooks;
   const { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, Label } = SDK.components;
   const { cn } = SDK.utils;
-
   const h = React.createElement;
 
-  // ── i18n ────────────────────────────────────────────────────────────────
+  // ── Built-in theme names (cannot be edited, only cloned) ─────────────────
+  const BUILTIN_NAMES = new Set(["default", "midnight", "ember", "mono", "cyberpunk", "rose"]);
 
-  const TRANSLATIONS = {
-    en: {
-      title: "Theme Editor",
-      builtIn: "Built-in themes",
-      userThemes: "My themes",
-      noUserThemes: "No custom themes yet.",
-      createFirst: "Create your first theme",
-      newTheme: "New theme",
-      editTheme: "Edit theme",
-      cloneTheme: "Clone",
-      deleteTheme: "Delete",
-      activateTheme: "Activate",
-      active: "Active",
-      save: "Save",
-      saving: "Saving…",
-      cancel: "Cancel",
-      confirmDelete: "Delete this theme?",
-      yes: "Yes, delete",
-      no: "Cancel",
-      name: "Slug (ID)",
-      label: "Display name",
-      description: "Description",
-      palette: "Palette",
-      background: "Background",
-      midground: "Midground",
-      foreground: "Foreground",
-      warmGlow: "Warm glow color",
-      noiseOpacity: "Noise opacity",
-      typography: "Typography",
-      fontSans: "Sans-serif stack",
-      fontMono: "Monospace stack",
-      fontDisplay: "Display / heading font",
-      fontUrl: "Font stylesheet URL",
-      fontUrlHint: "Google Fonts, Bunny Fonts, or self-hosted HTTPS URL",
-      baseSize: "Base font size (px)",
-      lineHeight: "Line height",
-      letterSpacing: "Letter spacing",
-      layout: "Layout",
-      borderRadius: "Border radius",
-      density: "Density",
-      compact: "Compact",
-      comfortable: "Comfortable",
-      spacious: "Spacious",
-      layoutVariant: "Layout variant",
-      standard: "Standard",
-      cockpit: "Cockpit (sidebar rail)",
-      tiled: "Tiled (full width)",
-      colorOverrides: "Color overrides",
-      customCSS: "Custom CSS",
-      customCSSHint: "Raw CSS injected on theme apply. Scoped automatically.",
-      assets: "Assets",
-      bgAsset: "Background asset (URL or gradient)",
-      preview: "Preview",
-      slugRequired: "Slug is required (lowercase, hyphens only)",
-      labelRequired: "Display name is required",
-      savedOk: "Theme saved",
-      deletedOk: "Theme deleted",
-      activatedOk: "Theme activated",
-      errorSaving: "Failed to save theme",
-      errorDeleting: "Failed to delete theme",
-      errorActivating: "Failed to activate theme",
-      popularFonts: "Popular open-source fonts",
-      customUrl: "Custom URL…",
-      fontPicker: "Choose font",
-      namePlaceholder: "e.g. my-dark-theme",
-      labelPlaceholder: "e.g. My Dark Theme",
-      descPlaceholder: "Short description for the theme picker",
-      previewText: "The quick brown fox jumps over the lazy dog.",
-      previewHeading: "Dashboard Preview",
-      hex: "Hex",
-      alpha: "Alpha",
-    },
-    hu: {
-      title: "Téma szerkesztő",
-      builtIn: "Beépített témák",
-      userThemes: "Saját témák",
-      noUserThemes: "Még nincs egyéni téma.",
-      createFirst: "Hozd létre az első témát",
-      newTheme: "Új téma",
-      editTheme: "Téma szerkesztése",
-      cloneTheme: "Klónozás",
-      deleteTheme: "Törlés",
-      activateTheme: "Aktiválás",
-      active: "Aktív",
-      save: "Mentés",
-      saving: "Mentés…",
-      cancel: "Mégse",
-      confirmDelete: "Törli ezt a témát?",
-      yes: "Igen, törlés",
-      no: "Mégse",
-      name: "Azonosító (slug)",
-      label: "Megjelenő név",
-      description: "Leírás",
-      palette: "Paletta",
-      background: "Háttér",
-      midground: "Középső réteg",
-      foreground: "Előtér",
-      warmGlow: "Meleg fény szín",
-      noiseOpacity: "Zaj átlátszóság",
-      typography: "Tipográfia",
-      fontSans: "Sans-serif betűkészlet",
-      fontMono: "Monospace betűkészlet",
-      fontDisplay: "Display / fejléc betűkészlet",
-      fontUrl: "Betűkészlet URL",
-      fontUrlHint: "Google Fonts, Bunny Fonts vagy saját HTTPS URL",
-      baseSize: "Alap betűméret (px)",
-      lineHeight: "Sormagasság",
-      letterSpacing: "Betűköz",
-      layout: "Elrendezés",
-      borderRadius: "Lekerekítés",
-      density: "Sűrűség",
-      compact: "Tömör",
-      comfortable: "Kényelmes",
-      spacious: "Tágas",
-      layoutVariant: "Elrendezés variáns",
-      standard: "Normál",
-      cockpit: "Cockpit (oldalsáv)",
-      tiled: "Csempézett (teljes szélesség)",
-      colorOverrides: "Szín felülírások",
-      customCSS: "Egyéni CSS",
-      customCSSHint: "Nyers CSS amely témaváltáskor kerül befecskendezésre.",
-      assets: "Erőforrások",
-      bgAsset: "Háttér (URL vagy gradiens)",
-      preview: "Előnézet",
-      slugRequired: "Az azonosító kötelező (kisbetűk és kötőjelek)",
-      labelRequired: "A megjelenő név kötelező",
-      savedOk: "Téma mentve",
-      deletedOk: "Téma törölve",
-      activatedOk: "Téma aktiválva",
-      errorSaving: "Mentés sikertelen",
-      errorDeleting: "Törlés sikertelen",
-      errorActivating: "Aktiválás sikertelen",
-      popularFonts: "Népszerű nyílt betűkészletek",
-      customUrl: "Egyéni URL…",
-      fontPicker: "Betűkészlet választás",
-      namePlaceholder: "pl. sajat-sotet-tema",
-      labelPlaceholder: "pl. Saját Sötét Téma",
-      descPlaceholder: "Rövid leírás a témaválasztóhoz",
-      previewText: "Árvíztűrő tükörfúrógép.",
-      previewHeading: "Dashboard előnézet",
-      hex: "Hex",
-      alpha: "Alfa",
-    },
-    zh: {
-      title: "主题编辑器",
-      builtIn: "内置主题",
-      userThemes: "我的主题",
-      noUserThemes: "暂无自定义主题。",
-      createFirst: "创建第一个主题",
-      newTheme: "新建主题",
-      editTheme: "编辑主题",
-      cloneTheme: "克隆",
-      deleteTheme: "删除",
-      activateTheme: "启用",
-      active: "当前",
-      save: "保存",
-      saving: "保存中…",
-      cancel: "取消",
-      confirmDelete: "确认删除此主题？",
-      yes: "确认删除",
-      no: "取消",
-      name: "标识符 (slug)",
-      label: "显示名称",
-      description: "描述",
-      palette: "调色板",
-      background: "背景色",
-      midground: "中间色",
-      foreground: "前景色",
-      warmGlow: "暖光颜色",
-      noiseOpacity: "噪点不透明度",
-      typography: "字体排版",
-      fontSans: "无衬线字体栈",
-      fontMono: "等宽字体栈",
-      fontDisplay: "展示字体",
-      fontUrl: "字体样式表 URL",
-      fontUrlHint: "Google Fonts、Bunny Fonts 或自托管 HTTPS URL",
-      baseSize: "基础字号 (px)",
-      lineHeight: "行高",
-      letterSpacing: "字间距",
-      layout: "布局",
-      borderRadius: "圆角",
-      density: "密度",
-      compact: "紧凑",
-      comfortable: "舒适",
-      spacious: "宽松",
-      layoutVariant: "布局变体",
-      standard: "标准",
-      cockpit: "驾驶舱（侧边栏）",
-      tiled: "平铺（全宽）",
-      colorOverrides: "颜色覆盖",
-      customCSS: "自定义 CSS",
-      customCSSHint: "主题应用时注入的原始 CSS。",
-      assets: "资源",
-      bgAsset: "背景资源（URL 或渐变）",
-      preview: "预览",
-      slugRequired: "标识符必填（小写字母和连字符）",
-      labelRequired: "显示名称必填",
-      savedOk: "主题已保存",
-      deletedOk: "主题已删除",
-      activatedOk: "主题已启用",
-      errorSaving: "保存失败",
-      errorDeleting: "删除失败",
-      errorActivating: "启用失败",
-      popularFonts: "常用开源字体",
-      customUrl: "自定义 URL…",
-      fontPicker: "选择字体",
-      namePlaceholder: "例如 my-dark-theme",
-      labelPlaceholder: "例如 我的深色主题",
-      descPlaceholder: "主题选择器中显示的简短描述",
-      previewText: "敏捷的棕色狐狸跳过了懒狗。",
-      previewHeading: "仪表板预览",
-      hex: "十六进制",
-      alpha: "透明度",
-    },
-  };
-
-  function usePluginI18n() {
-    let locale = "en";
-    try {
-      const i18n = useI18n();
-      locale = i18n.locale || "en";
-    } catch (_) {}
-    const t = TRANSLATIONS[locale] || TRANSLATIONS.en;
-    return t;
-  }
-
-  // ── Popular open-source fonts ────────────────────────────────────────────
-
-  const POPULAR_FONTS = [
-    { name: "Inter",         url: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",         stack: '"Inter", system-ui, sans-serif' },
-    { name: "Roboto",        url: "https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap",            stack: '"Roboto", system-ui, sans-serif' },
-    { name: "Lato",          url: "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",                  stack: '"Lato", system-ui, sans-serif' },
-    { name: "Poppins",       url: "https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap",       stack: '"Poppins", system-ui, sans-serif' },
-    { name: "Open Sans",     url: "https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap",         stack: '"Open Sans", system-ui, sans-serif' },
-    { name: "Nunito",        url: "https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap",            stack: '"Nunito", system-ui, sans-serif' },
-    { name: "Montserrat",    url: "https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;700&display=swap",        stack: '"Montserrat", system-ui, sans-serif' },
-    { name: "Raleway",       url: "https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;700&display=swap",           stack: '"Raleway", system-ui, sans-serif' },
-    { name: "DM Sans",       url: "https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&display=swap",           stack: '"DM Sans", system-ui, sans-serif' },
-    { name: "Manrope",       url: "https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700&display=swap",           stack: '"Manrope", system-ui, sans-serif' },
-    { name: "Work Sans",     url: "https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;700&display=swap",         stack: '"Work Sans", system-ui, sans-serif' },
-    { name: "Ubuntu",        url: "https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap",            stack: '"Ubuntu", system-ui, sans-serif' },
-    { name: "Quicksand",     url: "https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;700&display=swap",         stack: '"Quicksand", system-ui, sans-serif' },
-    { name: "Source Sans 3", url: "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap",     stack: '"Source Sans 3", system-ui, sans-serif' },
-    { name: "Playfair Display", url: "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;700&display=swap",   stack: '"Playfair Display", Georgia, serif' },
-    { name: "Merriweather",  url: "https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap",          stack: '"Merriweather", Georgia, serif' },
-    { name: "JetBrains Mono",url: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap",        stack: '"JetBrains Mono", ui-monospace, monospace' },
-    { name: "Fira Code",     url: "https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;700&display=swap",         stack: '"Fira Code", ui-monospace, monospace' },
-    { name: "IBM Plex Mono", url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&display=swap",     stack: '"IBM Plex Mono", ui-monospace, monospace' },
-    { name: "IBM Plex Sans", url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;700&display=swap",     stack: '"IBM Plex Sans", system-ui, sans-serif' },
+  // ── Popular open-source fonts ─────────────────────────────────────────────
+  const FONTS = [
+    { name: "System default",  url: "", stack: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
+    { name: "Inter",           url: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",          stack: '"Inter", system-ui, sans-serif' },
+    { name: "Roboto",          url: "https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap",             stack: '"Roboto", system-ui, sans-serif' },
+    { name: "Lato",            url: "https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",                   stack: '"Lato", system-ui, sans-serif' },
+    { name: "Poppins",         url: "https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap",        stack: '"Poppins", system-ui, sans-serif' },
+    { name: "Open Sans",       url: "https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap",          stack: '"Open Sans", system-ui, sans-serif' },
+    { name: "Nunito",          url: "https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap",             stack: '"Nunito", system-ui, sans-serif' },
+    { name: "Montserrat",      url: "https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;700&display=swap",         stack: '"Montserrat", system-ui, sans-serif' },
+    { name: "DM Sans",         url: "https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;700&display=swap",            stack: '"DM Sans", system-ui, sans-serif' },
+    { name: "Manrope",         url: "https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;700&display=swap",            stack: '"Manrope", system-ui, sans-serif' },
+    { name: "Work Sans",       url: "https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;700&display=swap",          stack: '"Work Sans", system-ui, sans-serif' },
+    { name: "Ubuntu",          url: "https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap",             stack: '"Ubuntu", system-ui, sans-serif' },
+    { name: "Quicksand",       url: "https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;700&display=swap",          stack: '"Quicksand", system-ui, sans-serif' },
+    { name: "Raleway",         url: "https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;700&display=swap",            stack: '"Raleway", system-ui, sans-serif' },
+    { name: "Playfair Display",url: "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;700&display=swap",       stack: '"Playfair Display", Georgia, serif' },
+    { name: "Merriweather",    url: "https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap",           stack: '"Merriweather", Georgia, serif' },
+    { name: "IBM Plex Sans",   url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;700&display=swap",      stack: '"IBM Plex Sans", system-ui, sans-serif' },
+    { name: "Source Sans 3",   url: "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap",      stack: '"Source Sans 3", system-ui, sans-serif' },
+    { name: "JetBrains Mono",  url: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap",         stack: '"JetBrains Mono", ui-monospace, monospace' },
+    { name: "Fira Code",       url: "https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;700&display=swap",          stack: '"Fira Code", ui-monospace, monospace' },
+    { name: "IBM Plex Mono",   url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Mono:wght@300;400;500;700&display=swap", stack: '"IBM Plex Mono", ui-monospace, monospace' },
   ];
 
-  // ── Default new theme template ───────────────────────────────────────────
+  const MONO_FONTS = FONTS.filter(f => f.stack.includes("monospace") || f.stack.includes("Mono") || f.stack.includes("Code"));
+  const SANS_FONTS = FONTS.filter(f => !f.stack.includes("monospace"));
 
-  function defaultThemeData() {
+  // ── Colour override labels (user-friendly) ────────────────────────────────
+  const OVERRIDE_META = [
+    { key: "primary",              label: "Primary action colour",    hint: "Buttons, active links, focus rings" },
+    { key: "primaryForeground",    label: "Primary button text",      hint: "Text on primary-coloured buttons" },
+    { key: "accent",               label: "Accent / highlight",       hint: "Secondary highlights and hover states" },
+    { key: "accentForeground",     label: "Accent text",              hint: "Text on accent-coloured surfaces" },
+    { key: "muted",                label: "Muted surface",            hint: "Quiet background panels" },
+    { key: "mutedForeground",      label: "Subtle text",              hint: "Placeholders, secondary labels" },
+    { key: "card",                 label: "Card background",          hint: "Message cards and panels" },
+    { key: "cardForeground",       label: "Card text",                hint: "Text inside cards" },
+    { key: "destructive",          label: "Danger / delete colour",   hint: "Delete buttons, error states" },
+    { key: "destructiveForeground",label: "Danger text",              hint: "Text on danger-coloured surfaces" },
+    { key: "success",              label: "Success colour",           hint: "Confirmations, connected state" },
+    { key: "warning",              label: "Warning colour",           hint: "Warnings, rate-limit notices" },
+    { key: "border",               label: "Border colour",            hint: "Card and panel borders" },
+    { key: "input",                label: "Input field border",       hint: "Text field outlines" },
+    { key: "ring",                 label: "Focus ring colour",        hint: "Keyboard-focus indicator" },
+    { key: "popover",              label: "Popover background",       hint: "Dropdown menus, tooltips" },
+    { key: "popoverForeground",    label: "Popover text",             hint: "Text inside dropdowns" },
+  ];
+
+  // ── Utility helpers ───────────────────────────────────────────────────────
+
+  function hexToRgb(hex) {
+    if (!hex || typeof hex !== "string") return [80, 80, 80];
+    const h = hex.replace("#", "");
+    if (h.length === 3) {
+      return [parseInt(h[0]+h[0],16), parseInt(h[1]+h[1],16), parseInt(h[2]+h[2],16)];
+    }
+    if (h.length >= 6) {
+      return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+    }
+    return [80, 80, 80];
+  }
+
+  function resolveHex(val) {
+    if (!val) return "#000000";
+    if (typeof val === "string") return val.startsWith("#") ? val : "#000000";
+    if (val && val.hex) return val.hex;
+    return "#000000";
+  }
+
+  function parsePx(str) {
+    return parseFloat(str) || 15;
+  }
+
+  function parseRem(str) {
+    if (!str) return 0.5;
+    const m = str.match(/([\d.]+)rem/);
+    return m ? parseFloat(m[1]) : 0.5;
+  }
+
+  function parseRgba(str) {
+    if (!str) return { r: 217, g: 119, b: 87, a: 0.3 };
+    const m = str.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)/);
+    if (!m) return { r: 217, g: 119, b: 87, a: 0.3 };
+    return { r: +m[1], g: +m[2], b: +m[3], a: m[4] !== undefined ? parseFloat(m[4]) : 1 };
+  }
+
+  function rgbaStr(r, g, b, a) {
+    return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${parseFloat(a).toFixed(2)})`;
+  }
+
+  function slugify(str) {
+    return str.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"").replace(/^-+|-+$/g,"").slice(0,64);
+  }
+
+  function matchFont(fontSans, fontList) {
+    if (!fontSans) return fontList[0];
+    return fontList.find(f => fontSans.includes(f.name.split(" ")[0])) || { name: "Custom", url: "", stack: fontSans };
+  }
+
+  function blendBg(hex, amount) {
+    const [r, g, b] = hexToRgb(hex);
+    const a = amount > 0 ? Math.min(255, r + amount) : Math.max(0, r + amount);
+    const bl = amount > 0 ? Math.min(255, b + amount) : Math.max(0, b + amount);
+    const gr = amount > 0 ? Math.min(255, g + amount) : Math.max(0, g + amount);
+    return `rgb(${a},${gr},${bl})`;
+  }
+
+  // ── Default empty theme ───────────────────────────────────────────────────
+  function emptyTheme(name, label) {
     return {
-      name: "",
-      label: "",
+      name: name || "",
+      label: label || "",
       description: "",
       palette: {
-        background: "#041c1c",
-        midground: "#ffe6cb",
+        background: "#0f172a",
+        midground: "#e2e8f0",
         foreground: { hex: "#ffffff", alpha: 0 },
-        warmGlow: "rgba(255, 189, 56, 0.35)",
-        noiseOpacity: 1,
+        warmGlow: "rgba(99, 102, 241, 0.25)",
+        noiseOpacity: 0.8,
       },
       typography: {
-        fontSans: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-        fontMono: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+        fontSans: '"Inter", system-ui, sans-serif',
+        fontMono: '"JetBrains Mono", ui-monospace, monospace',
         fontDisplay: "",
-        fontUrl: "",
-        baseSize: "15",
-        lineHeight: "1.55",
+        fontUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap",
+        baseSize: "15px",
+        lineHeight: "1.6",
         letterSpacing: "0",
       },
-      layout: {
-        radius: "0.5rem",
-        density: "comfortable",
-      },
+      layout: { radius: "0.5rem", density: "comfortable" },
       layoutVariant: "standard",
-      colorOverrides: {},
+      colorOverrides: {
+        primary: "#6366f1",
+        primaryForeground: "#ffffff",
+        accent: "#a78bfa",
+        accentForeground: "#1e1b4b",
+        success: "#22c55e",
+        warning: "#f59e0b",
+        destructive: "#ef4444",
+        border: "rgba(255,255,255,0.1)",
+      },
       assets: { bg: "" },
+      componentStyles: {},
       customCSS: "",
     };
   }
 
-  // ── Utility helpers ──────────────────────────────────────────────────────
+  // ── Live preview component ────────────────────────────────────────────────
+  function LivePreview({ theme }) {
+    const bg = resolveHex(theme.palette && theme.palette.background);
+    const mid = resolveHex(theme.palette && theme.palette.midground);
+    const ov = theme.colorOverrides || {};
+    const primary = ov.primary || "#6366f1";
+    const accent = ov.accent || "#a78bfa";
+    const border = ov.border || "rgba(255,255,255,0.1)";
+    const success = ov.success || "#22c55e";
+    const muted = ov.mutedForeground || mid;
+    const radius = theme.layout ? theme.layout.radius || "0.5rem" : "0.5rem";
+    const fontFamily = (theme.typography && theme.typography.fontSans) || "system-ui, sans-serif";
+    const fontSize = parsePx(theme.typography && theme.typography.baseSize) + "px";
+    const lineHeight = (theme.typography && theme.typography.lineHeight) || "1.6";
 
-  function slugify(str) {
-    return str
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 64);
-  }
+    const cs = theme.componentStyles || {};
+    const headerBg = (cs.header && cs.header.background) || blendBg(bg, 8);
+    const sidebarBg = (cs.sidebar && cs.sidebar.background) || blendBg(bg, 5);
+    const cardBg = (cs.card && cs.card.background) || "rgba(255,255,255,0.03)";
+    const cardShadow = (cs.card && cs.card.boxShadow) || "none";
 
-  function debounce(fn, ms) {
-    let timer;
-    return function (...args) {
-      clearTimeout(timer);
-      timer = setTimeout(() => fn.apply(this, args), ms);
-    };
-  }
+    const [pR, pG, pB] = hexToRgb(primary);
+    const [aR, aG, aB] = hexToRgb(accent);
 
-  // ── Sub-components ───────────────────────────────────────────────────────
-
-  function HexAlphaInput({ label: lbl, value, onChange }) {
-    const isObj = value && typeof value === "object";
-    const hex = isObj ? (value.hex || "#000000") : (value || "#000000");
-    const alpha = isObj ? (value.alpha !== undefined ? value.alpha : 1) : 1;
-    const showAlpha = isObj;
-
-    function onHexChange(e) {
-      if (showAlpha) {
-        onChange({ hex: e.target.value, alpha });
-      } else {
-        onChange(e.target.value);
+    // Inject font link if needed
+    const fontUrl = theme.typography && theme.typography.fontUrl;
+    const linkId = "hte-preview-font";
+    if (fontUrl) {
+      let link = document.getElementById(linkId);
+      if (!link) {
+        link = document.createElement("link");
+        link.id = linkId;
+        link.rel = "stylesheet";
+        document.head.appendChild(link);
       }
-    }
-    function onAlphaChange(e) {
-      const a = parseFloat(e.target.value);
-      onChange({ hex, alpha: isNaN(a) ? 0 : Math.max(0, Math.min(1, a)) });
+      if (link.href !== fontUrl) link.href = fontUrl;
     }
 
+    const S = { // shared style fragments
+      text: { color: mid, fontFamily, fontSize, lineHeight },
+      muted: { color: muted, fontFamily, fontSize: "10px", lineHeight },
+    };
+
+    return h("div", {
+      style: {
+        display: "flex", flexDirection: "column", borderRadius: radius,
+        overflow: "hidden", border: `1px solid ${border}`, height: "100%",
+        background: bg, fontFamily,
+      }
+    },
+      // Header
+      h("div", {
+        style: {
+          height: "36px", display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 10px", background: headerBg,
+          borderBottom: `1px solid ${border}`,
+        }
+      },
+        h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } },
+          h("span", { style: { width: "8px", height: "8px", borderRadius: "50%", background: success } }),
+          h("span", { style: { ...S.text, fontSize: "11px", fontWeight: 600 } }, "Hermes Agent"),
+        ),
+        h("span", { style: { ...S.muted } }, "◐ Theme Editor"),
+      ),
+
+      // Body: sidebar + main
+      h("div", { style: { display: "flex", flex: 1, overflow: "hidden" } },
+
+        // Sidebar
+        h("div", {
+          style: {
+            width: "42px", background: sidebarBg,
+            borderRight: `1px solid ${border}`,
+            display: "flex", flexDirection: "column", alignItems: "center",
+            padding: "8px 0", gap: "6px",
+          }
+        },
+          ...["💬","📋","⚙","🔑","▶"].map((icon, i) =>
+            h("div", {
+              key: i,
+              style: {
+                width: "30px", height: "30px", display: "flex", alignItems: "center",
+                justifyContent: "center", borderRadius: "6px", fontSize: "13px",
+                background: i === 0 ? `rgba(${pR},${pG},${pB},0.15)` : "transparent",
+                cursor: "default",
+              }
+            }, icon)
+          )
+        ),
+
+        // Chat area
+        h("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" } },
+          h("div", { style: { flex: 1, padding: "10px", display: "flex", flexDirection: "column", gap: "8px", overflow: "hidden" } },
+
+            // Assistant message
+            h("div", {
+              style: {
+                background: cardBg, boxShadow: cardShadow,
+                borderLeft: `3px solid ${accent}`,
+                borderRadius: radius, padding: "7px 10px",
+              }
+            },
+              h("div", { style: { ...S.muted, marginBottom: "3px" } }, "✦ Assistant"),
+              h("div", { style: { ...S.text, fontSize: "10px" } }, "Hello! How can I help you today?"),
+            ),
+
+            // User message
+            h("div", {
+              style: {
+                background: `rgba(${pR},${pG},${pB},0.1)`,
+                borderLeft: `3px solid ${primary}`,
+                borderRadius: radius, padding: "7px 10px", marginLeft: "12px",
+              }
+            },
+              h("div", { style: { ...S.muted, marginBottom: "3px" } }, "You"),
+              h("div", { style: { ...S.text, fontSize: "10px" } }, "Tell me about this theme."),
+            ),
+
+            // Tool call
+            h("div", {
+              style: {
+                background: `rgba(${aR},${aG},${aB},0.07)`,
+                border: `1px solid rgba(${aR},${aG},${aB},0.2)`,
+                borderRadius: radius, padding: "5px 8px",
+              }
+            },
+              h("div", { style: { ...S.muted, fontSize: "9px" } }, "⚡ theme_editor_get_theme"),
+            ),
+
+            // Button row
+            h("div", { style: { display: "flex", gap: "6px", marginTop: "2px" } },
+              h("div", {
+                style: {
+                  background: primary, color: "#fff",
+                  borderRadius: radius, padding: "4px 10px",
+                  fontSize: "9px", fontWeight: 600,
+                }
+              }, "Save"),
+              h("div", {
+                style: {
+                  background: "transparent",
+                  border: `1px solid ${border}`, color: muted,
+                  borderRadius: radius, padding: "4px 10px", fontSize: "9px",
+                }
+              }, "Cancel"),
+            ),
+          ),
+
+          // Input bar
+          h("div", {
+            style: {
+              padding: "7px 10px",
+              borderTop: `1px solid ${border}`,
+            }
+          },
+            h("div", {
+              style: {
+                background: "rgba(255,255,255,0.04)",
+                border: `1px solid ${border}`, borderRadius: radius,
+                padding: "5px 10px", fontSize: "10px", color: "rgba(255,255,255,0.3)",
+              }
+            }, "Type a message… "),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Field components ──────────────────────────────────────────────────────
+
+  function Section({ title, children, defaultOpen = true }) {
+    const [open, setOpen] = useState(defaultOpen);
+    return h("div", { className: "mb-2" },
+      h("button", {
+        type: "button",
+        onClick: () => setOpen(o => !o),
+        className: "w-full flex items-center justify-between px-3 py-2 rounded-md hover:bg-muted/30 transition-colors text-left",
+      },
+        h("span", { className: "text-xs font-semibold uppercase tracking-wider text-muted-foreground" }, title),
+        h("span", { className: "text-muted-foreground text-xs" }, open ? "▲" : "▼"),
+      ),
+      open && h("div", { className: "px-1 pb-2 flex flex-col gap-3" }, children),
+    );
+  }
+
+  function FieldRow({ label, hint, children }) {
     return h("div", { className: "flex flex-col gap-1" },
-      h("label", { className: "text-xs text-muted-foreground" }, lbl),
+      h("div", { className: "flex items-baseline gap-1" },
+        h("label", { className: "text-xs font-medium" }, label),
+        hint && h("span", { className: "text-xs text-muted-foreground" }, "— " + hint),
+      ),
+      children,
+    );
+  }
+
+  function ColorField({ label, hint, value, onChange }) {
+    const hex = resolveHex(value);
+    const isObj = value && typeof value === "object";
+    const alpha = isObj ? (value.alpha !== undefined ? value.alpha : 1) : undefined;
+
+    function onHex(e) {
+      onChange(isObj ? { hex: e.target.value, alpha } : e.target.value);
+    }
+    function onAlpha(e) {
+      onChange({ hex, alpha: parseFloat(e.target.value) });
+    }
+
+    return h(FieldRow, { label, hint },
       h("div", { className: "flex items-center gap-2" },
         h("input", {
           type: "color",
           value: hex.length === 7 ? hex : "#000000",
-          onChange: onHexChange,
-          className: "w-9 h-9 rounded border border-border cursor-pointer bg-transparent p-0.5",
+          onChange: onHex,
+          style: { width: "36px", height: "36px", padding: "2px", border: "1px solid var(--color-border)", borderRadius: "6px", cursor: "pointer", background: "transparent" },
         }),
         h(Input, {
           value: hex,
-          onChange: onHexChange,
+          onChange: onHex,
           className: "flex-1 font-mono text-xs h-9",
           placeholder: "#000000",
           maxLength: 9,
         }),
-        showAlpha && h("div", { className: "flex items-center gap-1" },
-          h("span", { className: "text-xs text-muted-foreground whitespace-nowrap" }, "α"),
-          h(Input, {
-            type: "number",
-            value: alpha,
-            onChange: onAlphaChange,
-            min: 0,
-            max: 1,
-            step: 0.05,
-            className: "w-20 text-xs h-9",
-          })
-        )
-      )
-    );
-  }
-
-  function SliderInput({ label: lbl, value, onChange, min, max, step, unit }) {
-    const numVal = parseFloat(value) || 0;
-    return h("div", { className: "flex flex-col gap-1" },
-      h("div", { className: "flex justify-between" },
-        h("label", { className: "text-xs text-muted-foreground" }, lbl),
-        h("span", { className: "text-xs font-mono" }, value + (unit || ""))
+        isObj && h("div", { className: "flex flex-col gap-0.5 w-24" },
+          h("span", { className: "text-xs text-muted-foreground" }, "Opacity " + Math.round((alpha || 0) * 100) + "%"),
+          h("input", {
+            type: "range", min: 0, max: 1, step: 0.01,
+            value: alpha || 0,
+            onChange: onAlpha,
+            style: { width: "100%", accentColor: "var(--color-primary)" },
+          }),
+        ),
       ),
-      h("input", {
-        type: "range",
-        min, max, step,
-        value: numVal,
-        onChange: e => onChange(e.target.value),
-        className: "w-full accent-primary h-1.5 rounded",
-      })
     );
   }
 
-  function FontSelector({ label: lbl, value, onChange, onUrlChange, urlValue, t }) {
-    const [open, setOpen] = useState(false);
-    const [customMode, setCustomMode] = useState(false);
-    const ref = useRef(null);
+  function GlowField({ label, hint, value, onChange }) {
+    const { r, g, b, a } = parseRgba(value || "rgba(99,102,241,0.25)");
+    const hex = "#" + [r, g, b].map(x => x.toString(16).padStart(2, "0")).join("");
 
-    useEffect(() => {
-      function onDown(e) {
-        if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-      }
-      document.addEventListener("mousedown", onDown);
-      return () => document.removeEventListener("mousedown", onDown);
-    }, []);
-
-    function selectFont(font) {
-      onChange(font.stack);
-      if (onUrlChange) onUrlChange(font.url);
-      setOpen(false);
+    function onHex(e) {
+      const [nr, ng, nb] = hexToRgb(e.target.value);
+      onChange(rgbaStr(nr, ng, nb, a));
+    }
+    function onAlpha(e) {
+      onChange(rgbaStr(r, g, b, e.target.value));
     }
 
-    return h("div", { className: "flex flex-col gap-1", ref },
-      h("label", { className: "text-xs text-muted-foreground" }, lbl),
-      h("div", { className: "flex gap-2" },
-        h("div", { className: "relative flex-1" },
-          h(Input, {
-            value: value || "",
-            onChange: e => onChange(e.target.value),
-            className: "text-xs h-9 pr-20",
-            placeholder: 'system-ui, sans-serif',
-          }),
-          h("button", {
-            type: "button",
-            onClick: () => setOpen(o => !o),
-            className: "absolute right-1 top-1 text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80 text-muted-foreground h-7",
-          }, t.fontPicker + " ▾"),
-          open && h("div", {
-            className: "absolute z-50 top-10 left-0 w-80 max-h-64 overflow-y-auto rounded-lg border border-border bg-popover shadow-xl",
-          },
-            h("div", { className: "p-2 text-xs font-semibold text-muted-foreground border-b border-border" }, t.popularFonts),
-            POPULAR_FONTS.map(font =>
-              h("button", {
-                key: font.name,
-                type: "button",
-                onClick: () => selectFont(font),
-                className: "w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors",
-                style: { fontFamily: font.stack },
-              }, font.name)
-            )
-          )
-        )
-      ),
-      onUrlChange && h("div", { className: "flex flex-col gap-1 mt-1" },
-        h("label", { className: "text-xs text-muted-foreground" }, t.fontUrl),
-        h(Input, {
-          value: urlValue || "",
-          onChange: e => onUrlChange(e.target.value),
-          className: "text-xs h-9",
-          placeholder: "https://fonts.googleapis.com/css2?family=Inter…",
+    return h(FieldRow, { label, hint },
+      h("div", { className: "flex items-center gap-2" },
+        h("input", {
+          type: "color", value: hex,
+          onChange: onHex,
+          style: { width: "36px", height: "36px", padding: "2px", border: "1px solid var(--color-border)", borderRadius: "6px", cursor: "pointer", background: "transparent" },
         }),
-        h("p", { className: "text-xs text-muted-foreground" }, t.fontUrlHint)
-      )
+        h("div", { className: "flex flex-col gap-0.5 flex-1" },
+          h("span", { className: "text-xs text-muted-foreground" }, "Intensity " + Math.round(a * 100) + "%"),
+          h("input", {
+            type: "range", min: 0, max: 1, step: 0.01,
+            value: a,
+            onChange: onAlpha,
+            style: { width: "100%", accentColor: "var(--color-primary)" },
+          }),
+        ),
+      ),
     );
   }
 
-  function ColorOverrideRow({ tokenKey, value, onChange }) {
-    return h("div", { className: "flex items-center gap-2" },
-      h("span", { className: "text-xs font-mono w-40 shrink-0 text-muted-foreground" }, tokenKey),
-      h("input", {
-        type: "color",
-        value: (value || "#000000").slice(0, 7),
-        onChange: e => onChange(e.target.value),
-        className: "w-8 h-8 rounded border border-border cursor-pointer bg-transparent p-0.5",
-      }),
-      h(Input, {
+  function SliderField({ label, hint, value, onChange, min, max, step, unit, format }) {
+    const numVal = parseFloat(value) || 0;
+    const display = format ? format(numVal) : (numVal + (unit || ""));
+    return h(FieldRow, { label, hint },
+      h("div", { className: "flex items-center gap-3" },
+        h("input", {
+          type: "range", min, max, step,
+          value: numVal,
+          onChange: e => onChange(e.target.value),
+          style: { flex: 1, accentColor: "var(--color-primary)" },
+        }),
+        h("span", { className: "text-xs font-mono w-16 text-right" }, display),
+      ),
+    );
+  }
+
+  function FontPicker({ label, hint, value, onChange, onUrlChange, urlValue, fontList }) {
+    const list = fontList || SANS_FONTS;
+    const matched = matchFont(value, list);
+    const isCustom = !list.find(f => f.name === matched.name);
+    const [customMode, setCustomMode] = useState(isCustom);
+
+    function pick(font) {
+      onChange(font.stack);
+      if (onUrlChange) onUrlChange(font.url);
+      setCustomMode(false);
+    }
+
+    return h(FieldRow, { label, hint },
+      h("div", { className: "flex flex-col gap-2" },
+        h("select", {
+          value: customMode ? "__custom__" : (matched.name || ""),
+          onChange: e => {
+            if (e.target.value === "__custom__") {
+              setCustomMode(true);
+            } else {
+              const f = list.find(x => x.name === e.target.value);
+              if (f) pick(f);
+            }
+          },
+          className: "text-sm h-9 rounded-md border border-input bg-background px-3 w-full",
+          style: { fontFamily: customMode ? "inherit" : matched.stack },
+        },
+          list.map(f => h("option", { key: f.name, value: f.name, style: { fontFamily: f.stack } }, f.name)),
+          h("option", { value: "__custom__" }, "Custom font stack…"),
+        ),
+        customMode && h(Input, {
+          value: value || "",
+          onChange: e => onChange(e.target.value),
+          placeholder: '"My Font", system-ui, sans-serif',
+          className: "text-xs font-mono h-9",
+        }),
+        onUrlChange && h("div", { className: "flex flex-col gap-1" },
+          h("span", { className: "text-xs text-muted-foreground" }, "Stylesheet URL (Google Fonts, Bunny Fonts, etc.)"),
+          h(Input, {
+            value: urlValue || "",
+            onChange: e => onUrlChange(e.target.value),
+            placeholder: "https://fonts.googleapis.com/css2?family=…",
+            className: "text-xs font-mono h-9",
+          }),
+        ),
+      ),
+    );
+  }
+
+  function TextareaField({ label, hint, value, onChange, placeholder, rows }) {
+    return h(FieldRow, { label, hint },
+      h("textarea", {
         value: value || "",
         onChange: e => onChange(e.target.value),
-        className: "flex-1 font-mono text-xs h-8",
-        placeholder: "#rrggbb or rgba(…)",
-      })
+        rows: rows || 5,
+        placeholder: placeholder || "",
+        className: "w-full text-xs font-mono rounded-md border border-input bg-background px-3 py-2 resize-y",
+      }),
     );
   }
 
-  // ── Preview panel ────────────────────────────────────────────────────────
-
-  function PreviewPanel({ theme, t }) {
-    const bgColor = typeof theme.palette.background === "string"
-      ? theme.palette.background
-      : (theme.palette.background && theme.palette.background.hex) || "#041c1c";
-    const fgColor = theme.colorOverrides && theme.colorOverrides.primary
-      ? theme.colorOverrides.primary
-      : "#6366f1";
-    const textColor = theme.colorOverrides && theme.colorOverrides.muted
-      ? theme.colorOverrides.muted
-      : "#e2e8f0";
-    const fontFamily = theme.typography.fontSans || "system-ui, sans-serif";
-    const fontSize = (theme.typography.baseSize || "15") + "px";
-    const lineHeight = theme.typography.lineHeight || "1.55";
-    const radius = theme.layout.radius || "0.5rem";
-
-    return h("div", {
-      style: {
-        background: bgColor,
-        fontFamily,
-        fontSize,
-        lineHeight,
-        borderRadius: radius,
-        padding: "1.25rem",
-        color: textColor,
-        border: "1px solid rgba(255,255,255,0.08)",
-        minHeight: "180px",
-      }
-    },
-      h("h3", { style: { color: fgColor, fontWeight: 600, marginBottom: "0.5rem", fontSize: "1.05em" } },
-        t.previewHeading
+  function RadioGroup({ label, hint, value, onChange, options }) {
+    return h(FieldRow, { label, hint },
+      h("div", { className: "flex gap-2 flex-wrap" },
+        options.map(opt =>
+          h("button", {
+            key: opt.value,
+            type: "button",
+            onClick: () => onChange(opt.value),
+            className: cn(
+              "text-xs px-3 py-1.5 rounded-md border transition-colors",
+              value === opt.value
+                ? "border-primary bg-primary/10 text-primary font-medium"
+                : "border-border hover:bg-muted/30",
+            ),
+          }, opt.label)
+        )
       ),
-      h("p", { style: { marginBottom: "0.75rem", opacity: 0.8, fontSize: "0.9em" } }, t.previewText),
-      h("div", { style: { display: "flex", gap: "0.5rem" } },
-        h("button", {
-          style: {
-            background: fgColor,
-            color: bgColor,
-            border: "none",
-            padding: "0.35rem 0.85rem",
-            borderRadius: radius,
-            fontSize: "0.85em",
-            cursor: "pointer",
-            fontFamily,
-          }
-        }, t.activateTheme),
-        h("button", {
-          style: {
-            background: "transparent",
-            color: textColor,
-            border: "1px solid rgba(255,255,255,0.15)",
-            padding: "0.35rem 0.85rem",
-            borderRadius: radius,
-            fontSize: "0.85em",
-            cursor: "pointer",
-            fontFamily,
-          }
-        }, t.cancel)
-      )
     );
   }
 
-  // ── Theme editor form ────────────────────────────────────────────────────
+  // ── Theme editor form ─────────────────────────────────────────────────────
+  function ThemeForm({ theme, isNew, onUpdate, onSave, onCancel, onDelete, onActivate, isActive, saving }) {
+    const readOnly = !isNew && BUILTIN_NAMES.has(theme.name);
 
-  const COLOR_OVERRIDE_KEYS = [
-    "primary", "primaryForeground",
-    "secondary", "secondaryForeground",
-    "accent", "accentForeground",
-    "muted", "mutedForeground",
-    "card", "cardForeground",
-    "destructive", "destructiveForeground",
-    "success", "warning",
-    "border", "input", "ring",
-  ];
-
-  function ThemeEditorForm({ initial, onSave, onCancel, isNew, t }) {
-    const [form, setForm] = useState(initial || defaultThemeData());
-    const [saving, setSaving] = useState(false);
-    const [errors, setErrors] = useState({});
-
-    const set = (path, value) => {
+    function set(path, value) {
       const parts = path.split(".");
-      setForm(prev => {
+      onUpdate(prev => {
         const next = { ...prev };
         let cur = next;
         for (let i = 0; i < parts.length - 1; i++) {
@@ -581,364 +559,361 @@
         cur[parts[parts.length - 1]] = value;
         return next;
       });
-    };
+    }
 
-    const setPalette = (k, v) => set("palette." + k, v);
-    const setTypo = (k, v) => set("typography." + k, v);
-    const setLayout = (k, v) => set("layout." + k, v);
-    const setOverride = (k, v) => {
-      setForm(prev => ({
+    function setOverride(key, val) {
+      onUpdate(prev => ({
         ...prev,
-        colorOverrides: { ...prev.colorOverrides, [k]: v },
+        colorOverrides: { ...prev.colorOverrides, [key]: val },
       }));
-    };
-
-    function validate() {
-      const errs = {};
-      if (!form.name || !form.name.trim()) errs.name = t.slugRequired;
-      if (!form.label || !form.label.trim()) errs.label = t.labelRequired;
-      setErrors(errs);
-      return Object.keys(errs).length === 0;
     }
 
-    async function handleSave() {
-      if (!validate()) return;
-      setSaving(true);
-      try {
-        await onSave(form);
-      } finally {
-        setSaving(false);
-      }
+    function setCompStyle(bucket, prop, val) {
+      onUpdate(prev => ({
+        ...prev,
+        componentStyles: {
+          ...prev.componentStyles,
+          [bucket]: { ...(prev.componentStyles || {})[bucket], [prop]: val },
+        },
+      }));
     }
 
-    const palette = form.palette || {};
-    const typo = form.typography || {};
-    const layout = form.layout || {};
-    const overrides = form.colorOverrides || {};
+    const p = theme.palette || {};
+    const t = theme.typography || {};
+    const l = theme.layout || {};
+    const ov = theme.colorOverrides || {};
+    const cs = theme.componentStyles || {};
+    const assets = theme.assets || {};
 
-    return h("div", { className: "flex flex-col gap-6 p-4 overflow-y-auto" },
+    const basePx = parsePx(t.baseSize || "15px");
+    const lineH = parseFloat(t.lineHeight || "1.6");
+    const remRadius = parseRem(l.radius || "0.5rem");
+    const lsVal = parseFloat(t.letterSpacing || "0") * 100;
 
-      // Basic info
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm" }, t.label + " & " + t.name)),
-        h(CardContent, { className: "flex flex-col gap-3" },
-          h("div", { className: "flex flex-col gap-1" },
-            h(Label, { className: "text-xs" }, t.name),
-            h(Input, {
-              value: form.name || "",
-              onChange: e => {
-                const v = isNew ? slugify(e.target.value) : e.target.value;
-                set("name", v);
-              },
-              placeholder: t.namePlaceholder,
-              disabled: !isNew,
-              className: cn("font-mono text-xs", errors.name && "border-destructive"),
-            }),
-            errors.name && h("p", { className: "text-xs text-destructive" }, errors.name)
-          ),
-          h("div", { className: "flex flex-col gap-1" },
-            h(Label, { className: "text-xs" }, t.label),
-            h(Input, {
-              value: form.label || "",
-              onChange: e => {
-                set("label", e.target.value);
-                if (isNew && !form.name) set("name", slugify(e.target.value));
-              },
-              placeholder: t.labelPlaceholder,
-              className: cn("text-xs", errors.label && "border-destructive"),
-            }),
-            errors.label && h("p", { className: "text-xs text-destructive" }, errors.label)
-          ),
-          h("div", { className: "flex flex-col gap-1" },
-            h(Label, { className: "text-xs" }, t.description),
-            h(Input, {
-              value: form.description || "",
-              onChange: e => set("description", e.target.value),
-              placeholder: t.descPlaceholder,
-              className: "text-xs",
-            })
-          )
-        )
+    return h("div", { className: "flex flex-col gap-1 overflow-y-auto" },
+
+      // Name / Label (only for user/new themes)
+      !readOnly && h(Section, { title: "Theme identity" },
+        h(FieldRow, { label: "Display name", hint: "Shown in the theme picker" },
+          h(Input, {
+            value: theme.label || "",
+            onChange: e => { set("label", e.target.value); if (isNew) set("name", slugify(e.target.value)); },
+            placeholder: "My Dark Theme",
+            className: "text-sm h-9",
+          }),
+        ),
+        isNew && h(FieldRow, { label: "ID (slug)", hint: "Filename — auto-generated, no spaces" },
+          h(Input, {
+            value: theme.name || "",
+            onChange: e => set("name", slugify(e.target.value)),
+            placeholder: "my-dark-theme",
+            className: "font-mono text-xs h-9",
+          }),
+        ),
+        h(FieldRow, { label: "Description", hint: "Optional — shown in the theme picker" },
+          h(Input, {
+            value: theme.description || "",
+            onChange: e => set("description", e.target.value),
+            placeholder: "Short description…",
+            className: "text-sm h-9",
+          }),
+        ),
       ),
 
-      // Palette
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm" }, t.palette)),
-        h(CardContent, { className: "flex flex-col gap-3" },
-          h(HexAlphaInput, { label: t.background, value: palette.background, onChange: v => setPalette("background", v) }),
-          h(HexAlphaInput, { label: t.midground, value: palette.midground, onChange: v => setPalette("midground", v) }),
-          h(HexAlphaInput, { label: t.foreground, value: palette.foreground, onChange: v => setPalette("foreground", v) }),
-          h("div", { className: "flex flex-col gap-1" },
-            h("label", { className: "text-xs text-muted-foreground" }, t.warmGlow),
-            h(Input, {
-              value: palette.warmGlow || "",
-              onChange: e => setPalette("warmGlow", e.target.value),
-              placeholder: "rgba(255, 189, 56, 0.35)",
-              className: "text-xs font-mono h-9",
-            })
-          ),
-          h(SliderInput, {
-            label: t.noiseOpacity,
-            value: String(palette.noiseOpacity !== undefined ? palette.noiseOpacity : 1),
-            onChange: v => setPalette("noiseOpacity", parseFloat(v)),
-            min: 0, max: 1.2, step: 0.05, unit: "",
+      // Base palette
+      h(Section, { title: "Base colours (3-layer palette)" },
+        h(ColorField, {
+          label: "Page background", hint: "Darkest base — the canvas behind everything",
+          value: p.background,
+          onChange: v => set("palette.background", v),
+        }),
+        h(ColorField, {
+          label: "Content colour", hint: "Primary text and most UI chrome derive from this",
+          value: p.midground,
+          onChange: v => set("palette.midground", v),
+        }),
+        h(ColorField, {
+          label: "Highlight layer", hint: "Top-layer accent (alpha 0 = invisible by default)",
+          value: p.foreground || { hex: "#ffffff", alpha: 0 },
+          onChange: v => set("palette.foreground", v),
+        }),
+        h(GlowField, {
+          label: "Atmosphere glow", hint: "Warm vignette colour in the background",
+          value: p.warmGlow,
+          onChange: v => set("palette.warmGlow", v),
+        }),
+        h(SliderField, {
+          label: "Texture / noise intensity", hint: "Film-grain overlay strength",
+          value: p.noiseOpacity !== undefined ? p.noiseOpacity : 1,
+          onChange: v => set("palette.noiseOpacity", parseFloat(v)),
+          min: 0, max: 1.2, step: 0.05,
+          format: v => Math.round(v * 100) + "%",
+        }),
+      ),
+
+      // UI colour overrides
+      h(Section, { title: "UI colours" },
+        ...OVERRIDE_META.map(meta =>
+          h(ColorField, {
+            key: meta.key,
+            label: meta.label, hint: meta.hint,
+            value: ov[meta.key] || "",
+            onChange: v => setOverride(meta.key, v),
           })
-        )
+        ),
       ),
 
       // Typography
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm" }, t.typography)),
-        h(CardContent, { className: "flex flex-col gap-3" },
-          h(FontSelector, {
-            label: t.fontSans,
-            value: typo.fontSans,
-            onChange: v => setTypo("fontSans", v),
-            onUrlChange: v => setTypo("fontUrl", v),
-            urlValue: typo.fontUrl,
-            t,
-          }),
-          h(FontSelector, {
-            label: t.fontMono,
-            value: typo.fontMono,
-            onChange: v => setTypo("fontMono", v),
-            t,
-          }),
-          h(FontSelector, {
-            label: t.fontDisplay,
-            value: typo.fontDisplay,
-            onChange: v => setTypo("fontDisplay", v),
-            t,
-          }),
-          h(SliderInput, {
-            label: t.baseSize,
-            value: String(parseFloat(typo.baseSize) || 15),
-            onChange: v => setTypo("baseSize", v + "px"),
-            min: 10, max: 24, step: 1, unit: "px",
-          }),
-          h(SliderInput, {
-            label: t.lineHeight,
-            value: String(parseFloat(typo.lineHeight) || 1.55),
-            onChange: v => setTypo("lineHeight", v),
-            min: 1.0, max: 2.2, step: 0.05, unit: "",
-          }),
-          h("div", { className: "flex flex-col gap-1" },
-            h("label", { className: "text-xs text-muted-foreground" }, t.letterSpacing),
-            h(Input, {
-              value: typo.letterSpacing || "0",
-              onChange: e => setTypo("letterSpacing", e.target.value),
-              placeholder: "0  or  0.01em",
-              className: "text-xs font-mono h-9",
-            })
-          )
-        )
+      h(Section, { title: "Typography" },
+        h(FontPicker, {
+          label: "Body / UI font", hint: "Used for most text in the dashboard",
+          value: t.fontSans, fontList: SANS_FONTS,
+          onChange: v => set("typography.fontSans", v),
+          onUrlChange: v => set("typography.fontUrl", v),
+          urlValue: t.fontUrl,
+        }),
+        h(FontPicker, {
+          label: "Code / monospace font", hint: "Used in code blocks and terminal output",
+          value: t.fontMono, fontList: MONO_FONTS,
+          onChange: v => set("typography.fontMono", v),
+        }),
+        h(FontPicker, {
+          label: "Heading / display font", hint: "Optional — falls back to body font if empty",
+          value: t.fontDisplay, fontList: SANS_FONTS,
+          onChange: v => set("typography.fontDisplay", v),
+        }),
+        h(SliderField, {
+          label: "Text size", hint: "Base font size in px",
+          value: basePx,
+          onChange: v => set("typography.baseSize", v + "px"),
+          min: 12, max: 20, step: 1, unit: "px",
+        }),
+        h(SliderField, {
+          label: "Line spacing", hint: "Vertical space between lines",
+          value: lineH,
+          onChange: v => set("typography.lineHeight", String(parseFloat(v).toFixed(2))),
+          min: 1.2, max: 2.2, step: 0.05,
+          format: v => parseFloat(v).toFixed(2) + "×",
+        }),
+        h(SliderField, {
+          label: "Letter spacing", hint: "Horizontal space between characters",
+          value: lsVal,
+          onChange: v => set("typography.letterSpacing", parseFloat(v) === 0 ? "0" : (parseFloat(v) / 100).toFixed(3) + "em"),
+          min: -5, max: 10, step: 0.5,
+          format: v => (parseFloat(v) >= 0 ? "+" : "") + parseFloat(v) + " units",
+        }),
       ),
 
       // Layout
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm" }, t.layout)),
-        h(CardContent, { className: "flex flex-col gap-3" },
-          h("div", { className: "flex flex-col gap-1" },
-            h("label", { className: "text-xs text-muted-foreground" }, t.borderRadius),
-            h(Input, {
-              value: layout.radius || "0.5rem",
-              onChange: e => setLayout("radius", e.target.value),
-              placeholder: "0.5rem",
-              className: "text-xs font-mono h-9",
-            })
-          ),
-          h("div", { className: "flex flex-col gap-1" },
-            h("label", { className: "text-xs text-muted-foreground" }, t.density),
-            h("select", {
-              value: layout.density || "comfortable",
-              onChange: e => setLayout("density", e.target.value),
-              className: "text-xs h-9 rounded-md border border-input bg-background px-3",
-            },
-              h("option", { value: "compact" }, t.compact),
-              h("option", { value: "comfortable" }, t.comfortable),
-              h("option", { value: "spacious" }, t.spacious)
-            )
-          ),
-          h("div", { className: "flex flex-col gap-1" },
-            h("label", { className: "text-xs text-muted-foreground" }, t.layoutVariant),
-            h("select", {
-              value: form.layoutVariant || "standard",
-              onChange: e => set("layoutVariant", e.target.value),
-              className: "text-xs h-9 rounded-md border border-input bg-background px-3",
-            },
-              h("option", { value: "standard" }, t.standard),
-              h("option", { value: "cockpit" }, t.cockpit),
-              h("option", { value: "tiled" }, t.tiled)
-            )
-          )
-        )
+      h(Section, { title: "Layout & spacing" },
+        h(SliderField, {
+          label: "Corner roundness", hint: "Border radius applied to all UI elements",
+          value: remRadius,
+          onChange: v => set("layout.radius", parseFloat(v).toFixed(3) + "rem"),
+          min: 0, max: 1.5, step: 0.025,
+          format: v => parseFloat(v).toFixed(2) + " rem",
+        }),
+        h(RadioGroup, {
+          label: "Spacing density", hint: "Controls padding throughout the UI",
+          value: l.density || "comfortable",
+          onChange: v => set("layout.density", v),
+          options: [
+            { value: "compact",     label: "Compact — tight" },
+            { value: "comfortable", label: "Comfortable — default" },
+            { value: "spacious",    label: "Spacious — relaxed" },
+          ],
+        }),
+        h(RadioGroup, {
+          label: "Dashboard layout variant",
+          value: theme.layoutVariant || "standard",
+          onChange: v => set("layoutVariant", v),
+          options: [
+            { value: "standard", label: "Standard" },
+            { value: "cockpit",  label: "Cockpit — sidebar rail" },
+            { value: "tiled",    label: "Tiled — full width" },
+          ],
+        }),
       ),
 
-      // Color overrides
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm" }, t.colorOverrides)),
-        h(CardContent, { className: "flex flex-col gap-2" },
-          COLOR_OVERRIDE_KEYS.map(key =>
-            h(ColorOverrideRow, {
-              key,
-              tokenKey: key,
-              value: overrides[key] || "",
-              onChange: v => setOverride(key, v),
-            })
-          )
-        )
+      // Component styles
+      h(Section, { title: "Component styling", defaultOpen: false },
+        h(FieldRow, { label: "Card background", hint: "Background CSS value (colour, gradient, etc.)" },
+          h(Input, {
+            value: (cs.card && cs.card.background) || "",
+            onChange: e => setCompStyle("card", "background", e.target.value),
+            placeholder: "rgba(255,255,255,0.03)",
+            className: "text-xs font-mono h-9",
+          }),
+        ),
+        h(FieldRow, { label: "Card shadow", hint: "box-shadow CSS value" },
+          h(Input, {
+            value: (cs.card && cs.card.boxShadow) || "",
+            onChange: e => setCompStyle("card", "boxShadow", e.target.value),
+            placeholder: "0 4px 16px -4px rgba(0,0,0,0.4)",
+            className: "text-xs font-mono h-9",
+          }),
+        ),
+        h(FieldRow, { label: "Header background", hint: "Top navigation bar" },
+          h(Input, {
+            value: (cs.header && cs.header.background) || "",
+            onChange: e => setCompStyle("header", "background", e.target.value),
+            placeholder: "rgba(15,23,42,0.98)",
+            className: "text-xs font-mono h-9",
+          }),
+        ),
+        h(FieldRow, { label: "Sidebar background", hint: "Left navigation panel" },
+          h(Input, {
+            value: (cs.sidebar && cs.sidebar.background) || "",
+            onChange: e => setCompStyle("sidebar", "background", e.target.value),
+            placeholder: "rgba(10,18,35,0.97)",
+            className: "text-xs font-mono h-9",
+          }),
+        ),
       ),
 
-      // Assets
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm" }, t.assets)),
-        h(CardContent, null,
-          h("div", { className: "flex flex-col gap-1" },
-            h("label", { className: "text-xs text-muted-foreground" }, t.bgAsset),
-            h(Input, {
-              value: (form.assets && form.assets.bg) || "",
-              onChange: e => setForm(prev => ({ ...prev, assets: { ...prev.assets, bg: e.target.value } })),
-              placeholder: "linear-gradient(165deg, #041c1c 0%, #0a2a2a 100%)",
-              className: "text-xs font-mono h-9",
-            })
-          )
-        )
+      // Background asset
+      h(Section, { title: "Background asset", defaultOpen: false },
+        h(FieldRow, { label: "Background image or gradient", hint: "URL or CSS gradient placed behind the UI" },
+          h(Input, {
+            value: assets.bg || "",
+            onChange: e => onUpdate(prev => ({ ...prev, assets: { ...prev.assets, bg: e.target.value } })),
+            placeholder: "linear-gradient(165deg, #0f172a 0%, #1e293b 100%)",
+            className: "text-xs font-mono h-9",
+          }),
+        ),
       ),
 
       // Custom CSS
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm" }, t.customCSS)),
-        h(CardContent, { className: "flex flex-col gap-2" },
-          h("textarea", {
-            value: form.customCSS || "",
-            onChange: e => set("customCSS", e.target.value),
-            rows: 8,
-            placeholder: "/* CSS injected on theme apply */\n:root[data-theme=\"my-theme\"] { }",
-            className: "w-full text-xs font-mono rounded-md border border-input bg-background px-3 py-2 resize-y min-h-[8rem]",
-          }),
-          h("p", { className: "text-xs text-muted-foreground" }, t.customCSSHint)
-        )
-      ),
-
-      // Live preview
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm" }, t.preview)),
-        h(CardContent, null,
-          h(PreviewPanel, { theme: form, t })
-        )
+      h(Section, { title: "Custom CSS (advanced)", defaultOpen: false },
+        h("p", { className: "text-xs text-muted-foreground px-1" },
+          "Raw CSS injected on theme apply. Scoped to :root[data-theme=\"", theme.name, "\"] in the real dashboard."
+        ),
+        h(TextareaField, {
+          label: "", value: theme.customCSS,
+          onChange: v => set("customCSS", v),
+          rows: 8,
+          placeholder: '/* Example: custom scrollbar */\n:root[data-theme="' + (theme.name || "my-theme") + '"] ::-webkit-scrollbar {\n  width: 8px;\n}\n',
+        }),
       ),
 
       // Action buttons
-      h("div", { className: "flex items-center gap-3 pb-4" },
-        h(Button, {
-          onClick: handleSave,
+      h("div", { className: "flex items-center gap-2 p-3 border-t border-border mt-2 sticky bottom-0 bg-background/95 backdrop-blur" },
+        !readOnly && h(Button, {
+          onClick: () => onSave(theme),
           disabled: saving,
           className: "flex-1",
-        }, saving ? t.saving : t.save),
-        h(Button, {
-          onClick: onCancel,
-          variant: "outline",
-        }, t.cancel)
-      )
-    );
-  }
-
-  // ── Theme list item ──────────────────────────────────────────────────────
-
-  function ThemeListItem({ theme, isActive, isUser, onEdit, onClone, onDelete, onActivate, t }) {
-    const [confirmDel, setConfirmDel] = useState(false);
-
-    return h("div", {
-      className: cn(
-        "flex items-start justify-between gap-3 p-3 rounded-lg border transition-colors",
-        isActive
-          ? "border-primary/50 bg-primary/5"
-          : "border-border hover:bg-muted/30",
-      )
-    },
-      h("div", { className: "flex flex-col gap-0.5 flex-1 min-w-0" },
-        h("div", { className: "flex items-center gap-2" },
-          h("span", { className: "text-sm font-medium truncate" }, theme.label || theme.name),
-          isActive && h(Badge, { variant: "default", className: "text-xs shrink-0" }, t.active)
-        ),
-        theme.description && h("p", { className: "text-xs text-muted-foreground truncate" }, theme.description),
-        h("p", { className: "text-xs text-muted-foreground font-mono" }, theme.name)
-      ),
-      h("div", { className: "flex items-center gap-1 shrink-0" },
+        }, saving ? "Saving…" : "💾 Save theme"),
         !isActive && h(Button, {
           variant: "outline",
           onClick: () => onActivate(theme.name),
-          className: "text-xs h-7 px-2",
-        }, t.activateTheme),
-        isUser && h(Button, {
+          className: "shrink-0",
+        }, "✓ Activate"),
+        isActive && h(Badge, { variant: "default", className: "shrink-0" }, "Active"),
+        !readOnly && !isNew && h(Button, {
           variant: "ghost",
-          onClick: () => onEdit(theme),
-          className: "text-xs h-7 px-2",
-        }, "✏"),
-        h(Button, {
-          variant: "ghost",
-          onClick: () => onClone(theme),
-          className: "text-xs h-7 px-2",
-        }, t.cloneTheme),
-        isUser && !confirmDel && h(Button, {
-          variant: "ghost",
-          onClick: () => setConfirmDel(true),
-          className: "text-xs h-7 px-2 text-destructive hover:text-destructive",
-        }, "✕"),
-        confirmDel && h("div", { className: "flex items-center gap-1" },
-          h("span", { className: "text-xs text-destructive" }, t.confirmDelete),
-          h(Button, {
-            variant: "destructive",
-            onClick: () => { setConfirmDel(false); onDelete(theme.name); },
-            className: "text-xs h-7 px-2",
-          }, t.yes),
-          h(Button, {
-            variant: "ghost",
-            onClick: () => setConfirmDel(false),
-            className: "text-xs h-7 px-2",
-          }, t.no)
-        )
-      )
+          onClick: () => onDelete(theme.name),
+          className: "shrink-0 text-destructive hover:text-destructive",
+        }, "🗑 Delete"),
+        h(Button, { variant: "ghost", onClick: onCancel, className: "shrink-0" }, "✕"),
+      ),
     );
   }
 
-  // ── Main page component ──────────────────────────────────────────────────
-
+  // ── Main page ─────────────────────────────────────────────────────────────
   function ThemeEditorPage() {
-    const t = usePluginI18n();
-
-    const [allThemes, setAllThemes] = useState([]);
-    const [activeTheme, setActiveTheme] = useState(null);
+    const [allThemes, setAllThemes]   = useState([]);
     const [userThemes, setUserThemes] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [view, setView] = useState("list"); // 'list' | 'editor'
-    const [editTarget, setEditTarget] = useState(null); // full theme dict or null for new
-    const [isNew, setIsNew] = useState(false);
-    const [toast, setToast] = useState(null);
+    const [activeTheme, setActive]    = useState(null);
+    const [editing, setEditing]       = useState(null);  // { data, isNew }
+    const [isDirty, setDirty]         = useState(false);
+    const [saving, setSaving]         = useState(false);
+    const [toast, setToast]           = useState(null);
+    const [loading, setLoading]       = useState(true);
 
     function showToast(msg, type = "ok") {
       setToast({ msg, type });
-      setTimeout(() => setToast(null), 3000);
+      setTimeout(() => setToast(null), 3500);
     }
 
-    async function loadThemes() {
+    async function load() {
       setLoading(true);
       try {
-        const [allRes, userRes] = await Promise.all([
+        const [ar, ur] = await Promise.all([
           fetchJSON("/api/dashboard/themes"),
           fetchJSON("/api/plugins/hermes-theme-editor/themes"),
         ]);
-        setAllThemes(allRes.themes || []);
-        setActiveTheme(allRes.active || null);
-        setUserThemes(userRes.themes || []);
-      } catch (err) {
-        showToast(err.message, "error");
+        setAllThemes(ar.themes || []);
+        setActive(ar.active || null);
+        setUserThemes(ur.themes || []);
+      } catch (e) {
+        showToast("Failed to load themes: " + e.message, "error");
       } finally {
         setLoading(false);
       }
     }
 
-    useEffect(() => { loadThemes(); }, []);
+    useEffect(() => { load(); }, []);
+
+    function openEdit(themeData, isNew = false) {
+      // Ensure all sub-objects exist so the form never crashes on undefined
+      const safe = {
+        ...emptyTheme(),
+        ...themeData,
+        palette: { ...emptyTheme().palette, ...(themeData.palette || {}) },
+        typography: { ...emptyTheme().typography, ...(themeData.typography || {}) },
+        layout: { ...emptyTheme().layout, ...(themeData.layout || {}) },
+        colorOverrides: { ...(themeData.colorOverrides || {}) },
+        componentStyles: { ...(themeData.componentStyles || {}) },
+        assets: { ...(themeData.assets || {}) },
+        customCSS: themeData.customCSS || "",
+      };
+      setEditing({ data: safe, isNew });
+      setDirty(false);
+    }
+
+    function openClone(source) {
+      const base = userThemes.find(u => u.name === source.name)
+        || (source.definition ? source.definition : source);
+      const cloned = { ...base, name: "", label: (base.label || base.name) + " (copy)" };
+      openEdit(cloned, true);
+    }
+
+    function handleUpdate(updater) {
+      setEditing(prev => {
+        if (!prev) return prev;
+        return { ...prev, data: updater(prev.data) };
+      });
+      setDirty(true);
+    }
+
+    async function handleSave(themeData) {
+      if (!themeData.name) { showToast("Slug (ID) is required", "error"); return; }
+      if (!themeData.label) { showToast("Display name is required", "error"); return; }
+      setSaving(true);
+      const isNew = editing && editing.isNew;
+      const method = isNew ? "POST" : "PUT";
+      const url = isNew
+        ? "/api/plugins/hermes-theme-editor/themes"
+        : `/api/plugins/hermes-theme-editor/themes/${encodeURIComponent(themeData.name)}`;
+      try {
+        await fetchJSON(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(themeData),
+        });
+        showToast("✓ Theme saved");
+        setDirty(false);
+        await load();
+        // Keep the editor open with the saved data
+        if (isNew) {
+          setEditing(prev => prev ? { ...prev, isNew: false } : prev);
+        }
+      } catch (e) {
+        showToast("Failed to save: " + e.message, "error");
+      } finally {
+        setSaving(false);
+      }
+    }
 
     async function handleActivate(name) {
       try {
@@ -947,185 +922,204 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name }),
         });
-        setActiveTheme(name);
-        showToast(t.activatedOk);
-      } catch {
-        showToast(t.errorActivating, "error");
+        setActive(name);
+        showToast("✓ Theme activated — reload the page to apply");
+      } catch (e) {
+        showToast("Failed to activate: " + e.message, "error");
       }
     }
 
     async function handleDelete(name) {
+      if (!window.confirm(`Delete theme "${name}"?`)) return;
       try {
-        await fetchJSON(`/api/plugins/hermes-theme-editor/themes/${encodeURIComponent(name)}`, {
-          method: "DELETE",
-        });
-        showToast(t.deletedOk);
-        loadThemes();
-      } catch {
-        showToast(t.errorDeleting, "error");
+        await fetchJSON(`/api/plugins/hermes-theme-editor/themes/${encodeURIComponent(name)}`, { method: "DELETE" });
+        showToast("Theme deleted");
+        setEditing(null);
+        await load();
+      } catch (e) {
+        showToast("Failed to delete: " + e.message, "error");
       }
     }
 
-    async function handleSave(formData) {
-      const method = isNew ? "POST" : "PUT";
-      const url = isNew
-        ? "/api/plugins/hermes-theme-editor/themes"
-        : `/api/plugins/hermes-theme-editor/themes/${encodeURIComponent(formData.name)}`;
-      try {
-        await fetchJSON(url, {
-          method,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-        showToast(t.savedOk);
-        setView("list");
-        loadThemes();
-      } catch (err) {
-        showToast(t.errorSaving + ": " + err.message, "error");
-        throw err;
-      }
-    }
-
-    function handleEdit(theme) {
-      const userTheme = userThemes.find(u => u.name === theme.name) || theme;
-      const parsed = {
-        ...defaultThemeData(),
-        ...userTheme,
-        palette: { ...defaultThemeData().palette, ...(userTheme.palette || {}) },
-        typography: { ...defaultThemeData().typography, ...(userTheme.typography || {}) },
-        layout: { ...defaultThemeData().layout, ...(userTheme.layout || {}) },
-        colorOverrides: userTheme.colorOverrides || {},
-        assets: userTheme.assets || {},
-      };
-      setEditTarget(parsed);
-      setIsNew(false);
-      setView("editor");
-    }
-
-    function handleClone(theme) {
-      const source = userThemes.find(u => u.name === theme.name) || theme.definition || theme;
-      const cloned = {
-        ...defaultThemeData(),
-        ...source,
-        name: "",
-        label: (source.label || source.name || "") + " (copy)",
-        palette: { ...defaultThemeData().palette, ...(source.palette || {}) },
-        typography: { ...defaultThemeData().typography, ...(source.typography || {}) },
-        layout: { ...defaultThemeData().layout, ...(source.layout || {}) },
-        colorOverrides: { ...(source.colorOverrides || {}) },
-        assets: { ...(source.assets || {}) },
-      };
-      setEditTarget(cloned);
-      setIsNew(true);
-      setView("editor");
-    }
-
-    function handleNew() {
-      setEditTarget(defaultThemeData());
-      setIsNew(true);
-      setView("editor");
-    }
-
-    const builtinNames = new Set(
-      allThemes.filter(t => !t.definition).map(t => t.name)
-    );
-
-    // Render
+    const userThemeNames = useMemo(() => new Set(userThemes.map(u => u.name)), [userThemes]);
+    const builtins = useMemo(() => allThemes.filter(t => BUILTIN_NAMES.has(t.name)), [allThemes]);
 
     if (loading) {
-      return h("div", { className: "flex items-center justify-center h-64 text-muted-foreground" }, "⏳ Loading…");
+      return h("div", { className: "flex items-center justify-center h-64 text-muted-foreground" }, "Loading themes…");
     }
 
-    if (view === "editor") {
-      return h("div", { className: "max-w-2xl mx-auto" },
-        h("div", { className: "flex items-center gap-3 px-4 pt-4 pb-2" },
-          h("button", {
-            onClick: () => setView("list"),
-            className: "text-muted-foreground hover:text-foreground text-sm",
-          }, "← " + t.cancel),
-          h("h2", { className: "text-base font-semibold" }, isNew ? t.newTheme : t.editTheme)
-        ),
-        h(ThemeEditorForm, {
-          initial: editTarget,
-          onSave: handleSave,
-          onCancel: () => setView("list"),
-          isNew,
-          t,
-        })
-      );
-    }
-
-    const userThemeNames = new Set(userThemes.map(u => u.name));
-
-    return h("div", { className: "flex flex-col gap-6 p-4 max-w-3xl mx-auto" },
+    return h("div", {
+      style: { display: "flex", height: "100%", overflow: "hidden", position: "relative" },
+    },
 
       // Toast
       toast && h("div", {
-        className: cn(
-          "fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm shadow-lg",
-          toast.type === "error" ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"
-        )
+        style: {
+          position: "fixed", top: "1rem", right: "1rem", zIndex: 9999,
+          padding: "0.5rem 1rem", borderRadius: "0.5rem", fontSize: "13px",
+          background: toast.type === "error" ? "var(--color-error, #ef4444)" : "var(--color-primary, #6366f1)",
+          color: "#fff", boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+        }
       }, toast.msg),
 
-      // Header
-      h("div", { className: "flex items-center justify-between" },
-        h("h1", { className: "text-xl font-bold" }, t.title),
-        h(Button, { onClick: handleNew }, "+ " + t.newTheme)
+      // ── Left: theme list ──────────────────────────────────────────────────
+      h("div", {
+        style: {
+          width: "220px", minWidth: "220px",
+          borderRight: "1px solid var(--color-border)",
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
+        }
+      },
+        h("div", {
+          style: {
+            padding: "12px 10px 8px",
+            borderBottom: "1px solid var(--color-border)",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }
+        },
+          h("span", { style: { fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-text-muted)" } }, "My themes"),
+          h("button", {
+            onClick: () => openEdit(emptyTheme(), true),
+            title: "New theme",
+            style: { fontSize: "18px", lineHeight: 1, cursor: "pointer", color: "var(--color-primary)", background: "none", border: "none" },
+          }, "+"),
+        ),
+
+        h("div", { style: { overflowY: "auto", flex: 1 } },
+          // User themes
+          userThemes.length === 0 && h("p", {
+            style: { fontSize: "11px", color: "var(--color-text-muted)", padding: "12px 12px", lineHeight: 1.5 }
+          }, "No custom themes yet.\nClick + to create one."),
+
+          userThemes.map(t => {
+            const isEditing = editing && editing.data.name === t.name;
+            const isAct = t.name === activeTheme;
+            return h("button", {
+              key: t.name,
+              onClick: () => openEdit(t),
+              style: {
+                width: "100%", textAlign: "left", padding: "8px 12px",
+                borderBottom: "1px solid var(--color-border)",
+                background: isEditing ? "var(--color-primary, #6366f1)22" : "none",
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between",
+                border: "none", borderBottom: "1px solid var(--color-border)",
+              }
+            },
+              h("div", null,
+                h("div", { style: { fontSize: "12px", fontWeight: 500 } }, t.label || t.name),
+                h("div", { style: { fontSize: "10px", color: "var(--color-text-muted)", fontFamily: "monospace" } }, t.name),
+              ),
+              isAct && h("span", { style: { fontSize: "9px", padding: "1px 5px", borderRadius: "9999px", background: "var(--color-primary, #6366f1)", color: "#fff" } }, "active"),
+            );
+          }),
+
+          // Built-in themes
+          h("div", {
+            style: { padding: "8px 10px 4px", fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-text-muted)" }
+          }, "Built-in (clone to edit)"),
+
+          builtins.map(t =>
+            h("div", {
+              key: t.name,
+              style: {
+                padding: "7px 12px", borderBottom: "1px solid var(--color-border)",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+              }
+            },
+              h("div", null,
+                h("div", { style: { fontSize: "12px" } }, t.label || t.name),
+                t.name === activeTheme && h("span", { style: { fontSize: "9px", padding: "1px 5px", borderRadius: "9999px", background: "var(--color-primary, #6366f1)", color: "#fff", marginLeft: "4px" } }, "active"),
+              ),
+              h("button", {
+                onClick: () => openClone(t),
+                style: { fontSize: "10px", padding: "2px 8px", borderRadius: "4px", cursor: "pointer", border: "1px solid var(--color-border)", background: "none", color: "var(--color-text-muted)" },
+              }, "Clone"),
+            )
+          ),
+        ),
       ),
 
-      // Built-in themes
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm text-muted-foreground" }, t.builtIn)),
-        h(CardContent, { className: "flex flex-col gap-2" },
-          allThemes.filter(th => builtinNames.has(th.name)).map(theme =>
-            h(ThemeListItem, {
-              key: theme.name,
-              theme,
-              isActive: theme.name === activeTheme,
-              isUser: false,
-              onEdit: handleEdit,
-              onClone: handleClone,
-              onDelete: handleDelete,
-              onActivate: handleActivate,
-              t,
-            })
-          )
-        )
+      // ── Middle: editor ────────────────────────────────────────────────────
+      h("div", {
+        style: {
+          flex: 1, display: "flex", flexDirection: "column",
+          overflow: "hidden", minWidth: 0,
+        }
+      },
+        !editing
+          ? h("div", {
+              style: {
+                flex: 1, display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center",
+                color: "var(--color-text-muted)", gap: "12px", padding: "24px",
+              }
+            },
+              h("div", { style: { fontSize: "40px" } }, "🎨"),
+              h("p", { style: { fontSize: "14px", fontWeight: 500 } }, "Select a theme from the list to edit it"),
+              h("p", { style: { fontSize: "12px", textAlign: "center", maxWidth: "300px" } },
+                "User themes (like your Claude theme) are fully editable. Built-in themes can only be cloned."
+              ),
+              h("button", {
+                onClick: () => openEdit(emptyTheme(), true),
+                style: {
+                  marginTop: "8px", padding: "8px 20px", borderRadius: "8px",
+                  background: "var(--color-primary, #6366f1)", color: "#fff",
+                  border: "none", fontSize: "13px", cursor: "pointer",
+                }
+              }, "+ Create new theme"),
+            )
+          : h("div", { style: { flex: 1, overflowY: "auto", padding: "12px 16px" } },
+              h("div", { style: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" } },
+                h("span", { style: { fontSize: "15px", fontWeight: 600 } },
+                  editing.isNew ? "New theme" : ("Editing: " + (editing.data.label || editing.data.name))
+                ),
+                isDirty && h("span", { style: { fontSize: "10px", color: "var(--color-warning, #f59e0b)", padding: "2px 6px", borderRadius: "4px", background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" } }, "Unsaved changes"),
+                BUILTIN_NAMES.has(editing.data.name) && !editing.isNew && h("span", { style: { fontSize: "10px", color: "var(--color-text-muted)", padding: "2px 6px", borderRadius: "4px", border: "1px solid var(--color-border)" } }, "Read-only (clone to edit)"),
+              ),
+              h(ThemeForm, {
+                theme: editing.data,
+                isNew: editing.isNew,
+                onUpdate: handleUpdate,
+                onSave: handleSave,
+                onCancel: () => { setEditing(null); setDirty(false); },
+                onDelete: handleDelete,
+                onActivate: handleActivate,
+                isActive: editing.data.name === activeTheme,
+                saving,
+              }),
+            ),
       ),
 
-      // User themes
-      h(Card, null,
-        h(CardHeader, null, h(CardTitle, { className: "text-sm text-muted-foreground" }, t.userThemes)),
-        h(CardContent, { className: "flex flex-col gap-2" },
-          userThemes.length === 0
-            ? h("div", { className: "flex flex-col items-center gap-3 py-6 text-muted-foreground" },
-                h("p", { className: "text-sm" }, t.noUserThemes),
-                h(Button, { variant: "outline", onClick: handleNew }, t.createFirst)
-              )
-            : userThemes.map(theme =>
-                h(ThemeListItem, {
-                  key: theme.name,
-                  theme,
-                  isActive: theme.name === activeTheme,
-                  isUser: true,
-                  onEdit: handleEdit,
-                  onClone: handleClone,
-                  onDelete: handleDelete,
-                  onActivate: handleActivate,
-                  t,
-                })
-              )
-        )
-      )
+      // ── Right: live preview ───────────────────────────────────────────────
+      editing && h("div", {
+        style: {
+          width: "280px", minWidth: "280px",
+          borderLeft: "1px solid var(--color-border)",
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
+        }
+      },
+        h("div", {
+          style: {
+            padding: "10px 12px 8px",
+            borderBottom: "1px solid var(--color-border)",
+            fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em",
+            color: "var(--color-text-muted)",
+          }
+        }, "Live Preview"),
+        h("div", { style: { flex: 1, padding: "12px", overflow: "hidden" } },
+          h(LivePreview, { theme: editing.data }),
+        ),
+      ),
     );
   }
 
-  // ── Register the plugin ──────────────────────────────────────────────────
-
+  // ── Register ──────────────────────────────────────────────────────────────
   if (window.__HERMES_PLUGINS__) {
     window.__HERMES_PLUGINS__.register("hermes-theme-editor", ThemeEditorPage);
   } else {
-    console.error("[hermes-theme-editor] __HERMES_PLUGINS__ not available — plugin not registered");
+    console.error("[hermes-theme-editor] __HERMES_PLUGINS__ not found");
   }
 
 })();

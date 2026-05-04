@@ -7,39 +7,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+---
+
+## [0.2.0] — 2026-05-04
+
+### Changed
+- **Complete rewrite of `dashboard/dist/index.js`** — replaced the basic theme selector with a full
+  visual **Theme Editor** (3-panel layout: theme list | editor form | live preview)
+- Sidebar tab label changed from "Themes" to "Theme Editor"
+
 ### Added
-- Initial plugin scaffold: `plugin.yaml`, `__init__.py`, `schemas.py`, `tools.py`, `commands.py`, `hooks.py`
-- Theme persistence layer: `themes/repository.py` with atomic YAML writes
-- Input validation: `themes/validator.py` (slug, hex, font URL whitelist, CSS cap)
-- Dashboard plugin manifest: `dashboard/manifest.json` — native **Themes** tab in Hermes Agent dashboard
-- Backend API (`dashboard/plugin_api.py`) mounted at `/api/plugins/hermes-theme-editor/`:
-  - `GET /themes` — list user themes
-  - `GET /themes/{name}` — get single theme
-  - `POST /themes` — create theme
-  - `PUT /themes/{name}` — update theme
-  - `DELETE /themes/{name}` — delete theme
-  - `GET /health` — plugin health check
-- Visual Theme Editor UI (`dashboard/dist/index.js`):
-  - Palette editor: background / midground / foreground (hex + alpha), warm glow, noise opacity
-  - Typography: sans-serif, monospace, display font pickers with 20 popular open-source Google Fonts
-  - Font URL field with domain whitelist (Google Fonts, Bunny Fonts, jsDelivr, …)
-  - Layout controls: border radius, density (compact / comfortable / spacious), layout variant
-  - Color overrides: all 18 shadcn-compat tokens
-  - Assets: background gradient/URL field
-  - Custom CSS textarea (32 KiB cap, matches Hermes Agent limit)
-  - Live preview panel showing palette, font, and radius applied in real time
-  - Theme list: built-in presets + user themes, with activate / edit / clone / delete actions
-- i18n: English, Hungarian, Chinese translations bundled in the plugin JS; adapts to host locale via `useI18n` from the Hermes Plugin SDK
-- LLM tools: `theme_editor_list_themes`, `theme_editor_get_theme`, `theme_editor_save_theme`, `theme_editor_delete_theme`, `theme_editor_open`
-- Slash command: `/theme-editor`
-- CLI subcommands: `hermes theme-editor list|get|delete`
-- `install.sh` — symlink or copy installer, auto-enables via `hermes plugins enable`
-- Unit tests: validator (22 cases), repository (14 cases)
-- Integration tests: all API endpoints (17 cases)
-- `.gitignore` configured to exclude secrets (`auth.json`, `google_token.json`, `*.key`)
+- **3-panel editor layout**: theme list sidebar (220 px) · editor form (flex) · live preview panel (280 px)
+- **Live preview** (`LivePreview` component): mini Hermes UI mockup — header, sidebar, chat bubbles,
+  message input — updates in real time as you change any field
+- **8 collapsible editor sections**:
+  1. Theme identity (name, label)
+  2. Base colours — background, midground, foreground (hex + alpha), warm glow (rgba), noise opacity
+  3. UI colours — all 17 shadcn-compat colour-override tokens with friendly labels
+  4. Typography — sans-serif, monospace, display font pickers (21 open-source fonts) + custom URL
+  5. Font sizes — base size slider (rem), line height slider
+  6. Layout — border radius slider, density radio (compact / comfortable / spacious), layout variant
+  7. Background asset — gradient string or image URL
+  8. Custom CSS — textarea with 32 KiB cap indicator
+- **`ColorField`** — hex input + native colour picker + optional alpha slider
+- **`GlowField`** — rgba colour picker with opacity slider (for warm glow)
+- **`SliderField`** — range slider with formatted value display
+- **`FontPicker`** — grouped dropdown (21 fonts) + optional custom URL field
+- **`RadioGroup`** — accessible radio buttons for density / layout variant
+- **`TextareaField`** — resizable textarea with character counter
+- Built-in themes (`default`, `midnight`, `ember`, `mono`, `cyberpunk`, `rose`) are read-only; **Clone** button creates a new editable copy
+- User themes (e.g. `anthropic-claude`) are fully editable: Save · Activate · Delete
 
 ---
 
 ## [0.1.0] — 2026-05-04
 
-_Initial development release (pre-alpha). Not yet published to PyPI._
+### Added
+- Initial plugin scaffold: `plugin.yaml`, `__init__.py`, `schemas.py`, `tools.py`, `commands.py`, `hooks.py`
+- Theme persistence layer: `themes/repository.py` with atomic YAML writes
+- Input validation: `themes/validator.py` (slug, hex, font URL whitelist, CSS cap)
+- Dashboard plugin manifest: `dashboard/manifest.json` — native tab in Hermes Agent dashboard
+- Backend API (`dashboard/plugin_api.py`) mounted at `/api/plugins/hermes-theme-editor/`
+- Basic theme selector UI (`dashboard/dist/index.js`)
+- i18n: English, Hungarian, Chinese translations
+- LLM tools: `theme_editor_list_themes`, `theme_editor_get_theme`, `theme_editor_save_theme`, `theme_editor_delete_theme`, `theme_editor_open`
+- Slash command: `/theme-editor`
+- CLI subcommands: `hermes theme-editor list|get|delete`
+- `install.sh` — symlink or copy installer
+- Unit tests: validator (22 cases), repository (14 cases)
+- Integration tests: all API endpoints (17 cases)

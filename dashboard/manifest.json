@@ -1,6 +1,6 @@
 {
   "name": "hermes-theme-editor",
-  "label": "Themes",
+  "label": "Theme Editor",
   "description": "Visual theme editor — create, preview, and activate dashboard themes",
   "icon": "Palette",
   "version": "0.1.0",
