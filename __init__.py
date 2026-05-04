@@ -12,7 +12,7 @@ from schemas import (
     DELETE_THEME_SCHEMA,
     OPEN_EDITOR_SCHEMA,
 )
-from tools import (
+from plugin_tools import (
     handle_list_themes,
     handle_get_theme,
     handle_save_theme,
@@ -32,11 +32,12 @@ def register(ctx) -> None:
     """Wire the plugin into the Hermes Agent plugin context."""
 
     # ── LLM tools ──────────────────────────────────────────────────────────
-    ctx.register_tool(LIST_THEMES_SCHEMA, handle_list_themes)
-    ctx.register_tool(GET_THEME_SCHEMA, handle_get_theme)
-    ctx.register_tool(SAVE_THEME_SCHEMA, handle_save_theme)
-    ctx.register_tool(DELETE_THEME_SCHEMA, handle_delete_theme)
-    ctx.register_tool(OPEN_EDITOR_SCHEMA, handle_open_editor)
+    _toolset = "theme-editor"
+    ctx.register_tool(LIST_THEMES_SCHEMA["name"], _toolset, LIST_THEMES_SCHEMA, handle_list_themes)
+    ctx.register_tool(GET_THEME_SCHEMA["name"], _toolset, GET_THEME_SCHEMA, handle_get_theme)
+    ctx.register_tool(SAVE_THEME_SCHEMA["name"], _toolset, SAVE_THEME_SCHEMA, handle_save_theme)
+    ctx.register_tool(DELETE_THEME_SCHEMA["name"], _toolset, DELETE_THEME_SCHEMA, handle_delete_theme)
+    ctx.register_tool(OPEN_EDITOR_SCHEMA["name"], _toolset, OPEN_EDITOR_SCHEMA, handle_open_editor)
 
     # ── Slash command ───────────────────────────────────────────────────────
     ctx.register_command("theme-editor", handle_slash_theme_editor)
