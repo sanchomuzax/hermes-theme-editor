@@ -1,0 +1,13 @@
+{
+  "name": "hermes-theme-editor",
+  "label": "Themes",
+  "description": "Visual theme editor — create, preview, and activate dashboard themes",
+  "icon": "Palette",
+  "version": "0.1.0",
+  "tab": {
+    "path": "/themes",
+    "position": "after:skills"
+  },
+  "entry": "dist/index.js",
+  "api": "plugin_api.py"
+}

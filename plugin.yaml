@@ -1,0 +1,16 @@
+name: hermes-theme-editor
+version: 0.1.0
+description: >
+  Visual theme editor for the Hermes Agent dashboard.
+  Create, edit, preview, and activate custom YAML themes from a native
+  dashboard tab — no config-file editing required.
+author: sanchomuzax
+homepage: https://github.com/sanchomuzax/hermes-theme-editor
+license: MIT
+
+# Hermes Agent minimum version this plugin requires
+hermes_min_version: "0.11.0"
+
+# Environment variables the plugin uses (all optional)
+optional_env:
+  - HERMES_GOOGLE_FONTS_API_KEY  # Enables full Google Fonts catalogue in font picker

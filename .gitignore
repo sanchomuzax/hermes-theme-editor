@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+build/
+.eggs/
+# Exclude top-level dist/ (Python build artefacts) but keep dashboard/dist/
+/dist/
+.venv/
+venv/
+env/
+.env
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets — never committed
+*.secret
+*.key
+auth.json
+google_token.json
+.env.*
+
+# Hermes runtime artefacts
+*.pid
+*.lock

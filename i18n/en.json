@@ -1,0 +1,9 @@
+{
+  "cli": {
+    "list_header": "User themes ({count}):",
+    "no_themes": "No user themes found in ~/.hermes/dashboard-themes/",
+    "deleted": "Deleted theme '{name}'",
+    "not_found": "Theme '{name}' not found",
+    "open_editor": "Open the Hermes Agent dashboard and navigate to the Themes tab (/themes)."
+  }
+}

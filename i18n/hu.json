@@ -1,0 +1,9 @@
+{
+  "cli": {
+    "list_header": "Saját témák ({count}):",
+    "no_themes": "Nincs saját téma a ~/.hermes/dashboard-themes/ mappában",
+    "deleted": "'{name}' téma törölve",
+    "not_found": "'{name}' téma nem található",
+    "open_editor": "Nyisd meg a Hermes Agent dashboardot és navigálj a Témák fülre (/themes)."
+  }
+}
