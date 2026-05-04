@@ -23,7 +23,7 @@ GOOGLE_FONTS_CACHE_TTL = 3600  # seconds
 
 PLUGIN_API_PREFIX = "/api/plugins/hermes-theme-editor"
 
-SLUG_RE = r"^[a-z0-9][a-z0-9\-]{0,62}[a-z0-9]$"
+SLUG_RE = r"^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?$"
 SLUG_MAX_LEN = 64
 
 CUSTOM_CSS_MAX = 32 * 1024  # 32 KiB — matches Hermes Agent limit

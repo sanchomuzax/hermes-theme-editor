@@ -29,7 +29,7 @@ hermes-theme-editor = "hermes_theme_editor:register"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=. --cov-report=term-missing --cov-omit=tests/*,venv/*,.venv/*"
+addopts = "--cov=. --cov-report=term-missing"
 
 [tool.coverage.run]
 source = ["."]
