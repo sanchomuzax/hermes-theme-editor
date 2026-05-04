@@ -3,7 +3,7 @@
   "label": "Theme Editor",
   "description": "Visual theme editor — create, preview, and activate dashboard themes",
   "icon": "Palette",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "tab": {
     "path": "/themes",
     "position": "after:skills"

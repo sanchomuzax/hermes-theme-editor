@@ -9,6 +9,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.0] — 2026-05-05
+
+### Added
+- **"Hide from sidebar" button** in the theme list panel: calls `POST /api/dashboard/plugins/hermes-theme-editor/visibility` then immediately reloads the page so the tab disappears without any further steps. The previous Hermes plugins-page button required a manual reload — this button does everything in one click.
+- **Anthropic/Claude gift theme** (`sample_themes/anthropic.yaml`): warm dark palette (`#1a1410` background, `#d97757` terracotta accent, `#e8e2d8` text), Inter + JetBrains Mono typography, custom scrollbar and focus-ring CSS, carefully tuned `colorOverrides` for every shadcn token. Installed automatically to `~/.hermes/dashboard-themes/` on first `install.sh` run (existing files are never overwritten).
+- **`install.sh` sample theme installer**: loops over `sample_themes/*.yaml` and copies each to `~/.hermes/dashboard-themes/` only if the destination file does not already exist — user customisations are preserved on re-install.
+
+---
+
 ## [0.3.0] — 2026-05-05
 
 ### Fixed

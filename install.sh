@@ -50,6 +50,21 @@ case "$MODE" in
     ;;
 esac
 
+# Install sample themes (skip files that already exist to preserve user edits)
+THEMES_DIR="$HERMES_HOME/dashboard-themes"
+mkdir -p "$THEMES_DIR"
+INSTALLED_SAMPLES=0
+for f in "$SRC/sample_themes/"*.yaml; do
+  [[ -f "$f" ]] || continue
+  DEST="$THEMES_DIR/$(basename "$f")"
+  if [[ ! -f "$DEST" ]]; then
+    cp "$f" "$DEST"
+    echo "✓ Installed sample theme: $(basename "$f")"
+    INSTALLED_SAMPLES=$((INSTALLED_SAMPLES + 1))
+  fi
+done
+[[ $INSTALLED_SAMPLES -eq 0 ]] && echo "  (sample themes already present — skipped)"
+
 # Enable in Hermes config if hermes CLI is available
 if command -v hermes &>/dev/null; then
   hermes plugins enable "$PLUGIN_NAME" 2>/dev/null && \

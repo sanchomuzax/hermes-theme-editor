@@ -1,5 +1,5 @@
 /**
- * Hermes Theme Editor — Dashboard Plugin v0.2.0
+ * Hermes Theme Editor — Dashboard Plugin v0.4.0
  *
  * A visual editor for Hermes Agent dashboard themes.
  * Built-in themes can only be cloned. User themes (e.g. anthropic-claude)
@@ -945,6 +945,7 @@
     const [saving, setSaving]         = useState(false);
     const [toast, setToast]           = useState(null);
     const [loading, setLoading]       = useState(true);
+    const [hiding, setHiding]         = useState(false);
 
     function showToast(msg, type = "ok") {
       setToast({ msg, type });
@@ -1061,6 +1062,22 @@
       }
     }
 
+    async function handleHideTab() {
+      if (!window.confirm("Hide the Theme Editor tab from the sidebar?\n\nThe page will reload. You can re-enable it from the Plugins menu.")) return;
+      setHiding(true);
+      try {
+        await fetchJSON("/api/dashboard/plugins/hermes-theme-editor/visibility", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hidden: true }),
+        });
+        window.location.reload();
+      } catch (e) {
+        showToast("Could not hide tab: " + e.message, "error");
+        setHiding(false);
+      }
+    }
+
     const userThemeNames = useMemo(() => new Set(userThemes.map(u => u.name)), [userThemes]);
     const builtins = useMemo(() => allThemes.filter(t => BUILTIN_NAMES.has(t.name)), [allThemes]);
 
@@ -1110,7 +1127,7 @@
           }, "+"),
         ),
 
-        h("div", { style: { overflowY: "auto", flex: 1 } },
+        h("div", { style: { overflowY: "auto", flex: 1, display: "flex", flexDirection: "column" } },
           // User themes
           userThemes.length === 0 && h("p", {
             style: { fontSize: "11px", color: "var(--color-text-muted)", padding: "12px 12px", lineHeight: 1.5 }
@@ -1160,6 +1177,32 @@
                 style: { fontSize: "10px", padding: "2px 8px", borderRadius: "4px", cursor: "pointer", border: "1px solid var(--color-border)", background: "none", color: "var(--color-text-muted)" },
               }, "Clone"),
             )
+          ),
+
+          // Spacer to push Hide button to bottom
+          h("div", { style: { flex: 1 } }),
+
+          // Hide from sidebar — calls API + reloads so it takes effect immediately
+          h("div", {
+            style: {
+              padding: "8px 10px",
+              borderTop: "1px solid var(--color-border)",
+              flexShrink: 0,
+            }
+          },
+            h("button", {
+              onClick: handleHideTab,
+              disabled: hiding,
+              title: "Remove this tab from the sidebar. Use the Plugins menu to restore it.",
+              style: {
+                width: "100%", padding: "5px 0", borderRadius: "5px",
+                background: "transparent",
+                border: "1px solid var(--color-border, rgba(255,255,255,0.1))",
+                color: "var(--color-text-muted, #6b7280)",
+                fontSize: "11px", cursor: hiding ? "not-allowed" : "pointer",
+                opacity: hiding ? 0.5 : 1,
+              },
+            }, hiding ? "Hiding…" : "⊘ Hide from sidebar"),
           ),
         ),
       ),
