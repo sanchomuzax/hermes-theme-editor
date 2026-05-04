@@ -191,7 +191,6 @@
     const muted = ov.mutedForeground || mid;
     const radius = theme.layout ? theme.layout.radius || "0.5rem" : "0.5rem";
     const fontFamily = (theme.typography && theme.typography.fontSans) || "system-ui, sans-serif";
-    const fontSize = parsePx(theme.typography && theme.typography.baseSize) + "px";
     const lineHeight = (theme.typography && theme.typography.lineHeight) || "1.6";
 
     const cs = theme.componentStyles || {};
@@ -217,17 +216,18 @@
       if (link.href !== fontUrl) link.href = fontUrl;
     }
 
+    // Scale text sizes proportionally so font-size changes are visible
+    const basePx   = parsePx(theme.typography && theme.typography.baseSize);
+    const scale    = Math.max(0.7, Math.min(1.3, basePx / 15));
+    const pxBase   = Math.round(10 * scale) + "px";
+    const pxSmall  = Math.round(8.5 * scale) + "px";
+    const pxTiny   = Math.round(7.5 * scale) + "px";
+
     const S = { // shared style fragments — sizes scale with baseSize
       text:  { color: mid,   fontFamily, fontSize: pxBase,  lineHeight },
       muted: { color: muted, fontFamily, fontSize: pxSmall, lineHeight },
       tiny:  { color: muted, fontFamily, fontSize: pxTiny,  lineHeight },
     };
-
-    // Scale text sizes proportionally so font-size changes are visible
-    const scale = Math.max(0.7, Math.min(1.3, basePx / 15));
-    const pxBase   = Math.round(10 * scale) + "px";
-    const pxSmall  = Math.round(8.5 * scale) + "px";
-    const pxTiny   = Math.round(7.5 * scale) + "px";
 
     return h("div", {
       style: {
