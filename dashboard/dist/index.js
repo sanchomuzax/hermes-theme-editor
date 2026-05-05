@@ -1,5 +1,5 @@
 /**
- * Hermes Theme Editor — Dashboard Plugin v0.4.3
+ * Hermes Theme Editor — Dashboard Plugin v0.4.4
  *
  * A visual editor for Hermes Agent dashboard themes.
  * Built-in themes can only be cloned. User themes (e.g. anthropic-claude)

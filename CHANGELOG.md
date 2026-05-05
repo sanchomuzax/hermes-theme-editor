@@ -9,6 +9,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.4] — 2026-05-05
+
+### Fixed
+- **`anthropic` theme: font now overrides correctly** — added `!important` CSS rule in `customCSS` targeting `*:not(code):not(pre)…` so DM Sans wins over Tailwind utility-class `font-family` declarations that ignore CSS variable changes
+- **`anthropic` theme: default Hermes background filler hidden** — changed `assets.bg` from `""` to `"none"`; an empty string leaves the Hermes default background image visible, `"none"` explicitly suppresses it via the `--theme-asset-bg: none` CSS var
+
+---
+
 ## [0.4.3] — 2026-05-05
 
 ### Changed

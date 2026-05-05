@@ -1,6 +1,6 @@
 name: anthropic
 label: "Claude — Anthropic"
-description: "claude.ai design language — near-black canvas, zero noise, Anthropic terracotta, clean DM Sans typography."
+description: "claude.ai design language — near-black canvas, zero noise, Anthropic terracotta, DM Sans typography."
 
 palette:
   background:
@@ -59,13 +59,20 @@ componentStyles:
     boxShadow: "0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(236,232,227,0.06)"
 
 assets:
-  bg: ""
+  # "none" explicitly hides the Hermes default background filler image.
+  # An empty string leaves it visible; "none" is the only way to suppress it.
+  bg: "none"
 
 customCSS: |
-  :root[data-theme="anthropic"] *:focus-visible {
-    outline: 2px solid rgba(217, 119, 87, 0.65);
-    outline-offset: 2px;
+  /* Force DM Sans everywhere — CSS variable alone is overridden by Tailwind
+     utility classes on some elements, so !important is required. */
+  :root[data-theme="anthropic"],
+  :root[data-theme="anthropic"] body,
+  :root[data-theme="anthropic"] *:not(code):not(pre):not(kbd):not(.font-mono):not([class*="mono"]) {
+    font-family: "DM Sans", "Inter", system-ui, -apple-system, sans-serif !important;
   }
+
+  /* Scrollbar */
   :root[data-theme="anthropic"] ::-webkit-scrollbar { width: 5px; height: 5px; }
   :root[data-theme="anthropic"] ::-webkit-scrollbar-track { background: transparent; }
   :root[data-theme="anthropic"] ::-webkit-scrollbar-thumb {
@@ -74,4 +81,10 @@ customCSS: |
   }
   :root[data-theme="anthropic"] ::-webkit-scrollbar-thumb:hover {
     background: rgba(217, 119, 87, 0.40);
+  }
+
+  /* Focus ring */
+  :root[data-theme="anthropic"] *:focus-visible {
+    outline: 2px solid rgba(217, 119, 87, 0.65);
+    outline-offset: 2px;
   }
