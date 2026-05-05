@@ -1,5 +1,5 @@
 /**
- * Hermes Theme Editor — Dashboard Plugin v0.4.1
+ * Hermes Theme Editor — Dashboard Plugin v0.4.2
  *
  * A visual editor for Hermes Agent dashboard themes.
  * Built-in themes can only be cloned. User themes (e.g. anthropic-claude)
@@ -145,24 +145,50 @@
     return `rgb(${a},${gr},${bl})`;
   }
 
-  // ── Direct DOM theme application (mirrors context.tsx applyTheme) ─────────
-  // Called after save when the edited theme is already active, so the user
-  // sees changes immediately without a page reload.
+  // ── Direct DOM theme application (mirrors context.tsx applyTheme exactly) ──
+  // Called after save/activate when the edited theme is active.
+  //
+  // Mirrors Hermes's _PREV_DYNAMIC_VAR_KEYS pattern: we track every CSS var
+  // written by the previous call and clear them before writing the new set,
+  // preventing stale component/asset vars from bleeding through on theme switch.
+
+  const ALL_OVERRIDE_VAR_NAMES = [
+    "--color-card","--color-card-foreground","--color-popover","--color-popover-foreground",
+    "--color-primary","--color-primary-foreground","--color-secondary","--color-secondary-foreground",
+    "--color-muted","--color-muted-foreground","--color-accent","--color-accent-foreground",
+    "--color-destructive","--color-destructive-foreground",
+    "--color-success","--color-warning","--color-border","--color-input","--color-ring",
+  ];
+  const OVERRIDE_VARS = {
+    card: "--color-card", cardForeground: "--color-card-foreground",
+    popover: "--color-popover", popoverForeground: "--color-popover-foreground",
+    primary: "--color-primary", primaryForeground: "--color-primary-foreground",
+    secondary: "--color-secondary", secondaryForeground: "--color-secondary-foreground",
+    muted: "--color-muted", mutedForeground: "--color-muted-foreground",
+    accent: "--color-accent", accentForeground: "--color-accent-foreground",
+    destructive: "--color-destructive", destructiveForeground: "--color-destructive-foreground",
+    success: "--color-success", warning: "--color-warning",
+    border: "--color-border", input: "--color-input", ring: "--color-ring",
+  };
+  const ASSET_KEYS = ["bg","hero","logo","crest","sidebar","header"];
+  const BUCKETS    = ["card","header","footer","sidebar","tab","progress","badge","backdrop","page"];
+  const DENSITY    = { compact: "0.85", comfortable: "1", spacious: "1.2" };
+  const toKebab    = s => s.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
+
+  // Tracks CSS vars written by the previous applyThemeToDom call (asset + component).
+  let _prevDynamicVarKeys = new Set();
+
   function applyThemeToDom(data) {
     const root = document.documentElement;
-    const DENSITY = { compact: "0.85", comfortable: "1", spacious: "1.2" };
-    const OVERRIDE_VARS = {
-      card: "--color-card", cardForeground: "--color-card-foreground",
-      popover: "--color-popover", popoverForeground: "--color-popover-foreground",
-      primary: "--color-primary", primaryForeground: "--color-primary-foreground",
-      secondary: "--color-secondary", secondaryForeground: "--color-secondary-foreground",
-      muted: "--color-muted", mutedForeground: "--color-muted-foreground",
-      accent: "--color-accent", accentForeground: "--color-accent-foreground",
-      destructive: "--color-destructive", destructiveForeground: "--color-destructive-foreground",
-      success: "--color-success", warning: "--color-warning",
-      border: "--color-border", input: "--color-input", ring: "--color-ring",
-    };
 
+    // Step 1 — clear every possible override var (mirrors Hermes's ALL_OVERRIDE_VARS loop)
+    for (const v of ALL_OVERRIDE_VAR_NAMES) root.style.removeProperty(v);
+
+    // Step 2 — clear dynamic vars written by the PREVIOUS theme (mirrors _PREV_DYNAMIC_VAR_KEYS)
+    for (const v of _prevDynamicVarKeys) root.style.removeProperty(v);
+    _prevDynamicVarKeys = new Set();
+
+    // ── Palette ──────────────────────────────────────────────────────────────
     function parseLayer(val, dHex, dAlpha = 1) {
       if (!val) return { hex: dHex, alpha: dAlpha };
       if (typeof val === "string") return { hex: val, alpha: dAlpha };
@@ -174,69 +200,80 @@
       root.style.setProperty(`--${name}-base`, layer.hex);
       root.style.setProperty(`--${name}-alpha`, String(layer.alpha));
     }
-
     const p = data.palette || {};
     setLayer("background", parseLayer(p.background, "#041c1c"));
     setLayer("midground",  parseLayer(p.midground,  "#ffe6cb"));
     setLayer("foreground", parseLayer(p.foreground, "#ffffff", 0));
-    if (p.warmGlow) root.style.setProperty("--warm-glow", p.warmGlow);
+    if (p.warmGlow)   root.style.setProperty("--warm-glow", p.warmGlow);
     root.style.setProperty("--noise-opacity-mul", String(p.noiseOpacity !== undefined ? p.noiseOpacity : 1));
 
+    // ── Typography — always write all vars; fall back to CSS defaults ─────────
     const t = data.typography || {};
-    if (t.fontSans)       root.style.setProperty("--theme-font-sans", t.fontSans);
-    if (t.fontMono)       root.style.setProperty("--theme-font-mono", t.fontMono);
-    if (t.fontDisplay)    root.style.setProperty("--theme-font-display", t.fontDisplay);
-    if (t.baseSize)       root.style.setProperty("--theme-base-size", t.baseSize);
-    if (t.lineHeight)     root.style.setProperty("--theme-line-height", t.lineHeight);
-    if (t.letterSpacing)  root.style.setProperty("--theme-letter-spacing", t.letterSpacing);
+    const fontSans = t.fontSans || 'system-ui,-apple-system,"Segoe UI",sans-serif';
+    root.style.setProperty("--theme-font-sans", fontSans);
+    // Also update Tailwind's --font-sans so .font-sans utility classes follow the theme
+    root.style.setProperty("--font-sans", fontSans);
+    root.style.setProperty("--theme-font-mono",    t.fontMono    || 'ui-monospace,monospace');
+    root.style.setProperty("--theme-font-display",  t.fontDisplay || fontSans);
+    root.style.setProperty("--theme-base-size",    t.baseSize    || "15px");
+    root.style.setProperty("--theme-line-height",  t.lineHeight  || "1.55");
+    root.style.setProperty("--theme-letter-spacing", t.letterSpacing || "0");
 
+    // ── Layout ────────────────────────────────────────────────────────────────
     const l = data.layout || {};
-    if (l.radius) {
-      root.style.setProperty("--radius", l.radius);
-      root.style.setProperty("--theme-radius", l.radius);
-    }
-    if (l.density) {
-      root.style.setProperty("--theme-spacing-mul", DENSITY[l.density] || "1");
-      root.style.setProperty("--theme-density", l.density);
-    }
+    root.style.setProperty("--radius",           l.radius  || "0.5rem");
+    root.style.setProperty("--theme-radius",     l.radius  || "0.5rem");
+    root.style.setProperty("--theme-spacing-mul", DENSITY[l.density] || "1");
+    root.style.setProperty("--theme-density",    l.density || "comfortable");
 
+    // ── Color overrides ───────────────────────────────────────────────────────
     const ov = data.colorOverrides || {};
     for (const [key, varName] of Object.entries(OVERRIDE_VARS)) {
       if (ov[key]) root.style.setProperty(varName, ov[key]);
-      else root.style.removeProperty(varName);
     }
 
-    const toKebab = s => s.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`);
-    const BUCKETS = ["card","header","footer","sidebar","tab","progress","badge","backdrop","page"];
+    // ── Assets (track for next-theme clearing) ────────────────────────────────
+    const assets = data.assets || {};
+    const dynamicVars = {};
+    for (const key of ASSET_KEYS) {
+      const val = assets[key];
+      if (typeof val === "string" && val.trim()) {
+        const v = val.trim();
+        const wrapped = /^(url\(|linear-gradient|radial-gradient|conic-gradient|none$)/i.test(v) ? v : `url("${v}")`;
+        dynamicVars[`--theme-asset-${key}`] = wrapped;
+        dynamicVars[`--theme-asset-${key}-raw`] = val;
+      }
+    }
+
+    // ── Component styles (track for next-theme clearing) ─────────────────────
     const cs = data.componentStyles || {};
     for (const bucket of BUCKETS) {
       const props = cs[bucket];
       if (!props) continue;
       for (const [prop, value] of Object.entries(props)) {
-        if (typeof value === "string" && value.trim())
-          root.style.setProperty(`--component-${bucket}-${toKebab(prop)}`, value);
+        if (typeof value === "string" && value.trim() && /^[a-zA-Z0-9_-]+$/.test(prop))
+          dynamicVars[`--component-${bucket}-${toKebab(prop)}`] = value;
       }
     }
 
-    const assets = data.assets || {};
-    if (assets.bg && assets.bg.trim()) {
-      const bg = assets.bg.trim();
-      const wrapped = /^(url\(|linear-gradient|radial-gradient|conic-gradient|none$)/i.test(bg) ? bg : `url("${bg}")`;
-      root.style.setProperty("--theme-asset-bg", wrapped);
-      root.style.setProperty("--theme-asset-bg-raw", bg);
-    } else {
-      root.style.removeProperty("--theme-asset-bg");
-      root.style.removeProperty("--theme-asset-bg-raw");
+    // Write dynamic vars and record keys for next clear pass
+    for (const [k, v] of Object.entries(dynamicVars)) {
+      root.style.setProperty(k, v);
+      _prevDynamicVarKeys.add(k);
     }
 
+    // ── Layout variant ────────────────────────────────────────────────────────
     if (data.layoutVariant) {
       root.dataset.layoutVariant = data.layoutVariant;
       root.style.setProperty("--theme-layout-variant", data.layoutVariant);
     }
 
+    // ── Font stylesheet ───────────────────────────────────────────────────────
     if (t.fontUrl) {
-      const existing = document.querySelector(`link[href="${t.fontUrl}"]`);
-      if (!existing) {
+      const existing = document.querySelector(`link[data-hermes-theme-font]`);
+      if (existing) {
+        if (existing.href !== t.fontUrl) existing.href = t.fontUrl;
+      } else {
         const link = document.createElement("link");
         link.rel = "stylesheet"; link.href = t.fontUrl;
         link.setAttribute("data-hermes-theme-font", "true");
@@ -244,6 +281,7 @@
       }
     }
 
+    // ── Custom CSS ────────────────────────────────────────────────────────────
     const styleId = "hermes-theme-custom-css";
     let styleEl = document.getElementById(styleId);
     if (data.customCSS && data.customCSS.trim()) {
@@ -1049,6 +1087,9 @@
         });
         setActive(name);
         applyThemeToDom(themeData);
+        // Mirror what Hermes's setTheme() does — keeps localStorage in sync
+        // so the native theme switcher doesn't revert to a stale name.
+        try { window.localStorage.setItem("hermes-dashboard-theme", name); } catch (_) {}
         showToast("✓ Theme activated");
       } catch (e) {
         showToast("Failed to activate: " + e.message, "error");

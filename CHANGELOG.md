@@ -9,6 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.2] — 2026-05-05
+
+### Fixed
+- **Background bleed on theme switch**: `applyThemeToDom` now mirrors Hermes's `_PREV_DYNAMIC_VAR_KEYS` pattern — every `--component-*` and `--theme-asset-*` var written by the previous call is tracked and cleared before the new theme is applied, preventing stale component/asset styles from bleeding through.
+- **Font not applying**: `--font-sans` (Tailwind's own variable, used by `.font-sans` utility classes) is now also set to match `--theme-font-sans` on every theme apply, so Tailwind-classed elements follow the theme font.
+- **Typography vars always written**: every typography variable (`--theme-font-sans`, `--theme-font-mono`, `--theme-font-display`, `--theme-base-size`, `--theme-line-height`, `--theme-letter-spacing`) is now always set unconditionally — no more "skip if falsy" that left stale values from the previous theme.
+- **localStorage sync on activate**: `handleActivate` now writes `hermes-dashboard-theme` to `localStorage` (same as Hermes's own `setTheme()`), so F5 and the native theme switcher see the correct active theme instead of the previous one.
+- **Font stylesheet reuse**: instead of injecting a new `<link>` element on every apply, the existing `[data-hermes-theme-font]` link's `href` is updated in-place, avoiding duplicate stylesheet requests.
+
+---
+
 ## [0.4.1] — 2026-05-05
 
 ### Fixed
