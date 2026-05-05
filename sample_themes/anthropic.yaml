@@ -1,29 +1,29 @@
 name: anthropic
 label: "Claude — Anthropic"
-description: "Anthropic's signature palette — warm dark backgrounds, terracotta accent, clean Inter typography. Inspired by claude.ai."
+description: "claude.ai design language — near-black canvas, zero noise, Anthropic terracotta, clean DM Sans typography."
 
 palette:
   background:
-    hex: "#1a1410"
+    hex: "#1c1c1a"
     alpha: 1.0
-  midground: "#e8e2d8"
+  midground: "#ece8e3"
   foreground:
     hex: "#d97757"
-    alpha: 0.05
-  warmGlow: "rgba(217, 119, 87, 0.16)"
-  noiseOpacity: 0.55
+    alpha: 0.03
+  warmGlow: "rgba(217, 119, 87, 0.05)"
+  noiseOpacity: 0.0
 
 typography:
-  fontSans: '"Inter", system-ui, -apple-system, sans-serif'
-  fontMono: '"JetBrains Mono", "Fira Code", ui-monospace, monospace'
-  fontDisplay: '"Inter", system-ui, sans-serif'
-  fontUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
-  baseSize: "15px"
+  fontSans: '"DM Sans", "Inter", system-ui, -apple-system, sans-serif'
+  fontMono: '"JetBrains Mono", ui-monospace, monospace'
+  fontDisplay: '"DM Sans", "Inter", system-ui, sans-serif'
+  fontUrl: "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap"
+  baseSize: "15.5px"
   lineHeight: "1.65"
-  letterSpacing: "0"
+  letterSpacing: "-0.005em"
 
 layout:
-  radius: "0.625rem"
+  radius: "0.75rem"
   density: "comfortable"
 
 layoutVariant: "standard"
@@ -31,54 +31,47 @@ layoutVariant: "standard"
 colorOverrides:
   primary: "#d97757"
   primaryForeground: "#ffffff"
-  accent: "#e8a07a"
-  accentForeground: "#1a1410"
-  secondary: "#2a2218"
-  secondaryForeground: "#e8e2d8"
-  muted: "#251e18"
-  mutedForeground: "#9b8f84"
-  card: "#211a14"
-  cardForeground: "#e8e2d8"
-  destructive: "#c0504a"
+  accent: "#e89a78"
+  accentForeground: "#1c1c1a"
+  secondary: "#2a2a28"
+  secondaryForeground: "#ece8e3"
+  muted: "#252523"
+  mutedForeground: "#a09890"
+  card: "#232321"
+  cardForeground: "#ece8e3"
+  destructive: "#c05040"
   destructiveForeground: "#ffffff"
-  success: "#4e9e72"
-  warning: "#c8892a"
-  border: "rgba(232, 226, 216, 0.10)"
-  input: "rgba(232, 226, 216, 0.12)"
+  success: "#4a9870"
+  warning: "#c8882a"
+  border: "rgba(236, 232, 227, 0.08)"
+  input: "rgba(236, 232, 227, 0.10)"
   ring: "#d97757"
-  popover: "#211a14"
-  popoverForeground: "#e8e2d8"
+  popover: "#232321"
+  popoverForeground: "#ece8e3"
 
 componentStyles:
   header:
-    background: "rgba(20, 16, 11, 0.97)"
+    background: "rgba(24, 24, 22, 0.98)"
   sidebar:
-    background: "rgba(16, 12, 8, 0.98)"
+    background: "rgba(18, 18, 16, 0.99)"
   card:
-    background: "rgba(255, 248, 240, 0.025)"
-    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(232, 226, 216, 0.06)"
+    background: "rgba(36, 36, 34, 0.80)"
+    boxShadow: "0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(236,232,227,0.06)"
 
 assets:
   bg: ""
 
 customCSS: |
-  /* Subtle terracotta glow on active/focused primary elements */
   :root[data-theme="anthropic"] *:focus-visible {
-    outline: 2px solid rgba(217, 119, 87, 0.7);
+    outline: 2px solid rgba(217, 119, 87, 0.65);
     outline-offset: 2px;
   }
-  /* Warmer scrollbar */
-  :root[data-theme="anthropic"] ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  :root[data-theme="anthropic"] ::-webkit-scrollbar-track {
-    background: transparent;
-  }
+  :root[data-theme="anthropic"] ::-webkit-scrollbar { width: 5px; height: 5px; }
+  :root[data-theme="anthropic"] ::-webkit-scrollbar-track { background: transparent; }
   :root[data-theme="anthropic"] ::-webkit-scrollbar-thumb {
-    background: rgba(217, 119, 87, 0.25);
+    background: rgba(217, 119, 87, 0.20);
     border-radius: 3px;
   }
   :root[data-theme="anthropic"] ::-webkit-scrollbar-thumb:hover {
-    background: rgba(217, 119, 87, 0.45);
+    background: rgba(217, 119, 87, 0.40);
   }

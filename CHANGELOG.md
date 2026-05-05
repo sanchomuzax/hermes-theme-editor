@@ -9,6 +9,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.4.3] — 2026-05-05
+
+### Changed
+- **`sample_themes/anthropic.yaml` — complete redesign** to faithfully match the claude.ai visual language:
+  - Background `#1c1c1a` — near-black, no brown warmth
+  - `noiseOpacity: 0.0` — zero grain/noise texture
+  - `warmGlow: rgba(217,119,87,0.05)` — barely perceptible, down from 16%
+  - Font changed to **DM Sans** (closest open-source match to Söhne used on claude.ai) at 15.5 px with −0.005 em letter-spacing
+  - `border-radius: 0.75rem` — matches claude.ai's rounded cards
+  - All `colorOverrides` recalibrated: muted surfaces darker (`#252523`), `mutedForeground` lightened to `#a09890` for readable secondary labels
+  - Card shadow refined to match claude.ai's subtle depth
+  - Removed the orange `foreground` highlight layer (was at 5%, contributed to the warm cast)
+
+---
+
 ## [0.4.2] — 2026-05-05
 
 ### Fixed
