@@ -109,6 +109,15 @@ Ask the agent:
 
 The agent uses the `theme_editor_save_theme` tool to write the YAML directly to `~/.hermes/dashboard-themes/`.
 
+### Companion X/Twitter Themes
+
+For social monitoring dashboards, pair Theme Editor with
+[Hermes Tweet](https://github.com/Xquik-dev/hermes-tweet). Hermes Tweet can
+collect X/Twitter account, post, or trend context inside Hermes, while Theme
+Editor can save a dedicated dashboard theme for those monitoring profiles and
+sessions. Hermes Tweet is a third-party project maintained by Xquik-dev, not by
+this repository.
+
 ---
 
 ## Theme format
