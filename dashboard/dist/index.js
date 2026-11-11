@@ -29,7 +29,295 @@
   const h = React.createElement;
 
   // ── Built-in theme names (cannot be edited, only cloned) ─────────────────
-  const BUILTIN_NAMES = new Set(["default", "midnight", "ember", "mono", "cyberpunk", "rose"]);
+  // Full definitions of Hermes built-in dashboard themes, generated from
+  // hermes-agent web/src/themes/presets.ts (BUILTIN_THEMES) as of v0.23.1.
+  // /api/dashboard/themes returns only name/label/description for built-ins, so cloning
+  // needs these to copy the real palette instead of the editor defaults.
+  const BUILTIN_DEFS = {
+    "default": {
+      "name": "default",
+      "label": "Hermes Teal",
+      "description": "Classic dark teal — the canonical Hermes look",
+      "palette": {
+        "background": {
+          "hex": "#041c1c",
+          "alpha": 1
+        },
+        "midground": {
+          "hex": "#ffe6cb",
+          "alpha": 1
+        },
+        "foreground": {
+          "hex": "#ffffff",
+          "alpha": 0
+        },
+        "warmGlow": "rgba(255, 189, 56, 0.35)",
+        "noiseOpacity": 1
+      },
+      "typography": {
+        "fontSans": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+        "fontMono": "ui-monospace, \"SF Mono\", \"Cascadia Mono\", Menlo, Consolas, monospace",
+        "baseSize": "15px",
+        "lineHeight": "1.55",
+        "letterSpacing": "0"
+      },
+      "layout": {
+        "radius": "0.5rem",
+        "density": "comfortable"
+      },
+      "terminalBackground": "#000000"
+    },
+    "default-large": {
+      "name": "default-large",
+      "label": "Hermes Teal (Large)",
+      "description": "Hermes Teal with bigger fonts and roomier spacing",
+      "palette": {
+        "background": {
+          "hex": "#041c1c",
+          "alpha": 1
+        },
+        "midground": {
+          "hex": "#ffe6cb",
+          "alpha": 1
+        },
+        "foreground": {
+          "hex": "#ffffff",
+          "alpha": 0
+        },
+        "warmGlow": "rgba(255, 189, 56, 0.35)",
+        "noiseOpacity": 1
+      },
+      "typography": {
+        "fontSans": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+        "fontMono": "ui-monospace, \"SF Mono\", \"Cascadia Mono\", Menlo, Consolas, monospace",
+        "baseSize": "18px",
+        "lineHeight": "1.65",
+        "letterSpacing": "0"
+      },
+      "layout": {
+        "radius": "0.5rem",
+        "density": "spacious"
+      }
+    },
+    "nous-blue": {
+      "name": "nous-blue",
+      "label": "Nous Blue",
+      "description": "Light mode — vivid Nous-blue accents on cream canvas",
+      "palette": {
+        "background": {
+          "hex": "#E8F2FD",
+          "alpha": 1
+        },
+        "midground": {
+          "hex": "#0053FD",
+          "alpha": 1
+        },
+        "foreground": {
+          "hex": "#170d02",
+          "alpha": 0
+        },
+        "warmGlow": "rgba(0, 83, 253, 0.12)",
+        "noiseOpacity": 0
+      },
+      "typography": {
+        "fontSans": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+        "fontMono": "ui-monospace, \"SF Mono\", \"Cascadia Mono\", Menlo, Consolas, monospace",
+        "baseSize": "15px",
+        "lineHeight": "1.55",
+        "letterSpacing": "0"
+      },
+      "layout": {
+        "radius": "0.5rem",
+        "density": "comfortable"
+      },
+      "terminalBackground": "#f5f8fc",
+      "terminalForeground": "#170d02",
+      "seriesColors": {
+        "inputTokenAccent": "#001934",
+        "outputTokenAccent": "#0053fd"
+      },
+      "swatchColors": [
+        "#170d02",
+        "#0053FD",
+        "#E8F2FD"
+      ]
+    },
+    "midnight": {
+      "name": "midnight",
+      "label": "Midnight",
+      "description": "Deep blue-violet with cool accents",
+      "palette": {
+        "background": {
+          "hex": "#08081c",
+          "alpha": 1
+        },
+        "midground": {
+          "hex": "#ddd6ff",
+          "alpha": 1
+        },
+        "foreground": {
+          "hex": "#ffffff",
+          "alpha": 0
+        },
+        "warmGlow": "rgba(139, 128, 232, 0.3)",
+        "noiseOpacity": 0.8
+      },
+      "typography": {
+        "fontSans": "\"Inter\", system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+        "fontMono": "\"JetBrains Mono\", ui-monospace, \"SF Mono\", \"Cascadia Mono\", Menlo, Consolas, monospace",
+        "baseSize": "15px",
+        "lineHeight": "1.55",
+        "letterSpacing": "-0.005em",
+        "fontUrl": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+      },
+      "layout": {
+        "radius": "0.75rem",
+        "density": "comfortable"
+      }
+    },
+    "ember": {
+      "name": "ember",
+      "label": "Ember",
+      "description": "Warm crimson and bronze — forge vibes",
+      "palette": {
+        "background": {
+          "hex": "#160800",
+          "alpha": 1
+        },
+        "midground": {
+          "hex": "#ffd8b0",
+          "alpha": 1
+        },
+        "foreground": {
+          "hex": "#ffffff",
+          "alpha": 0
+        },
+        "warmGlow": "rgba(217, 115, 22, 0.3)",
+        "noiseOpacity": 1
+      },
+      "typography": {
+        "fontSans": "\"Spectral\", Georgia, \"Times New Roman\", serif",
+        "fontMono": "\"IBM Plex Mono\", ui-monospace, \"SF Mono\", \"Cascadia Mono\", Menlo, Consolas, monospace",
+        "baseSize": "15px",
+        "lineHeight": "1.55",
+        "letterSpacing": "0",
+        "fontUrl": "https://fonts.googleapis.com/css2?family=Spectral:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap"
+      },
+      "layout": {
+        "radius": "0.25rem",
+        "density": "comfortable"
+      },
+      "colorOverrides": {
+        "destructive": "#c92d0f",
+        "warning": "#f97316"
+      }
+    },
+    "mono": {
+      "name": "mono",
+      "label": "Mono",
+      "description": "Clean grayscale — minimal and focused",
+      "palette": {
+        "background": {
+          "hex": "#0e0e0e",
+          "alpha": 1
+        },
+        "midground": {
+          "hex": "#eaeaea",
+          "alpha": 1
+        },
+        "foreground": {
+          "hex": "#ffffff",
+          "alpha": 0
+        },
+        "warmGlow": "rgba(154, 154, 154, 0.3)",
+        "noiseOpacity": 0.6
+      },
+      "typography": {
+        "fontSans": "\"IBM Plex Sans\", system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+        "fontMono": "\"IBM Plex Mono\", ui-monospace, \"SF Mono\", \"Cascadia Mono\", Menlo, Consolas, monospace",
+        "baseSize": "15px",
+        "lineHeight": "1.55",
+        "letterSpacing": "0",
+        "fontUrl": "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      },
+      "layout": {
+        "radius": "0",
+        "density": "comfortable"
+      }
+    },
+    "cyberpunk": {
+      "name": "cyberpunk",
+      "label": "Cyberpunk",
+      "description": "Neon green on black — matrix terminal",
+      "palette": {
+        "background": {
+          "hex": "#000a00",
+          "alpha": 1
+        },
+        "midground": {
+          "hex": "#00ff41",
+          "alpha": 1
+        },
+        "foreground": {
+          "hex": "#ffffff",
+          "alpha": 0
+        },
+        "warmGlow": "rgba(0, 255, 65, 0.3)",
+        "noiseOpacity": 1.2
+      },
+      "typography": {
+        "fontSans": "\"Share Tech Mono\", \"JetBrains Mono\", ui-monospace, \"SF Mono\", \"Cascadia Mono\", Menlo, Consolas, monospace",
+        "fontMono": "\"Share Tech Mono\", \"JetBrains Mono\", ui-monospace, \"SF Mono\", \"Cascadia Mono\", Menlo, Consolas, monospace",
+        "baseSize": "15px",
+        "lineHeight": "1.55",
+        "letterSpacing": "0",
+        "fontUrl": "https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;700&display=swap"
+      },
+      "layout": {
+        "radius": "0",
+        "density": "comfortable"
+      },
+      "colorOverrides": {
+        "success": "#00ff88",
+        "warning": "#ffd700",
+        "destructive": "#ff0055"
+      }
+    },
+    "rose": {
+      "name": "rose",
+      "label": "Rosé",
+      "description": "Soft pink and warm ivory — easy on the eyes",
+      "palette": {
+        "background": {
+          "hex": "#1a0f15",
+          "alpha": 1
+        },
+        "midground": {
+          "hex": "#ffd4e1",
+          "alpha": 1
+        },
+        "foreground": {
+          "hex": "#ffffff",
+          "alpha": 0
+        },
+        "warmGlow": "rgba(249, 168, 212, 0.3)",
+        "noiseOpacity": 0.9
+      },
+      "typography": {
+        "fontSans": "\"Fraunces\", Georgia, serif",
+        "fontMono": "\"DM Mono\", ui-monospace, \"SF Mono\", \"Cascadia Mono\", Menlo, Consolas, monospace",
+        "baseSize": "15px",
+        "lineHeight": "1.55",
+        "letterSpacing": "0",
+        "fontUrl": "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=DM+Mono:wght@400;500&display=swap"
+      },
+      "layout": {
+        "radius": "1rem",
+        "density": "comfortable"
+      }
+    }
+  };
+  const BUILTIN_NAMES = new Set(["default", "midnight", "ember", "mono", "cyberpunk", "rose", ...Object.keys(BUILTIN_DEFS)]);
 
   // ── Popular open-source fonts ─────────────────────────────────────────────
   const FONTS = [
@@ -129,7 +417,7 @@
   }
 
   function slugify(str) {
-    return str.toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"").replace(/^-+|-+$/g,"").slice(0,64);
+    return String(str || "").toLowerCase().replace(/\s+/g,"-").replace(/[^a-z0-9-]/g,"").replace(/-+/g,"-").replace(/^-+|-+$/g,"").slice(0,63).replace(/-+$/g,"");
   }
 
   function matchFont(fontSans, fontList) {
@@ -774,7 +1062,7 @@
         h(FieldRow, { label: "Display name", hint: "Shown in the theme picker" },
           h(Input, {
             value: theme.label || "",
-            onChange: e => { set("label", e.target.value); if (isNew) set("name", slugify(e.target.value)); },
+            onChange: e => { set("label", e.target.value); const sl = slugify(e.target.value); if (isNew && sl) set("name", sl); },
             placeholder: "My Dark Theme",
             className: "text-sm h-9",
           }),
@@ -1030,9 +1318,12 @@
     }
 
     function openClone(source) {
+      const builtin = BUILTIN_DEFS[source.name];
       const base = userThemes.find(u => u.name === source.name)
-        || (source.definition ? source.definition : source);
-      const cloned = { ...base, name: "", label: (base.label || base.name) + " (copy)" };
+        || source.definition
+        || (builtin ? JSON.parse(JSON.stringify(builtin)) : source);
+      const cloneLabel = (base.label || base.name) + " (copy)";
+      const cloned = { ...base, name: slugify(cloneLabel) || slugify((base.name || "") + "-copy"), label: cloneLabel };
       openEdit(cloned, true);
     }
 
@@ -1045,6 +1336,12 @@
     }
 
     async function handleSave(themeData) {
+      if (!themeData.name && editing && editing.isNew) {
+        // Non-ASCII display names (e.g. Korean) slugify to "": derive a safe fallback ID.
+        const autoName = slugify(themeData.label) || ("theme-" + Date.now().toString(36));
+        themeData = { ...themeData, name: autoName };
+        setEditing(prev => prev ? { ...prev, data: { ...prev.data, name: autoName } } : prev);
+      }
       if (!themeData.name) { showToast("Slug (ID) is required", "error"); return; }
       if (!themeData.label) { showToast("Display name is required", "error"); return; }
       setSaving(true);
