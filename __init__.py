@@ -5,6 +5,15 @@ The visual UI is served as a native dashboard tab via dashboard/manifest.json
 and dashboard/dist/index.js — no separate web server needed.
 """
 
+import sys
+from pathlib import Path
+
+# Allow flat sibling imports (schemas, commands, themes, ...) when Hermes
+# loads this directory as a package.
+_plugin_root = Path(__file__).resolve().parent
+if str(_plugin_root) not in sys.path:
+    sys.path.insert(0, str(_plugin_root))
+
 from schemas import (
     LIST_THEMES_SCHEMA,
     GET_THEME_SCHEMA,
